@@ -1,0 +1,28 @@
+{
+        "C_Cpp.errorSquiggles": "Disabled",
+        "terminal.integrated.fontFamily": "Fira code",
+        "idf.portWin": "COM14",
+        "files.associations": {
+                "freertos.h": "c",
+                "smartconfig.h": "c",
+                "cjson.h": "c",
+                "esp_system.h": "c",
+                "esp_log.h": "c",
+                "e2prom.h": "c",
+                "http.h": "c",
+                "ota.h": "c",
+                "servertimer.h": "c",
+                "string.h": "c",
+                "user_app.h": "c",
+                "switch.h": "c",
+                "led.h": "c",
+                "json_parse.h": "c",
+                "random": "c",
+                "esp_wifi.h": "c",
+                "*.ipp": "c",
+                "task.h": "c",
+                "datadeletetask.h": "c",
+                "peripheraldriver.h": "c"
+        },
+        "idf.flashType": "UART",
+}
