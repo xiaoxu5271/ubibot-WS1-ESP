@@ -24,19 +24,19 @@
 #include "MagTask.h"
 #include "PeripheralDriver.h"
 
-extern OsiSyncObj_t             xBinary4;       //For Magnetic Sensor Task
-extern OsiMsgQ_t                xQueue0;        //Used for cjson and memory save
+extern OsiSyncObj_t xBinary4; //For Magnetic Sensor Task
+extern OsiMsgQ_t xQueue0;     //Used for cjson and memory save
 
-extern volatile uint8_t         door_status;
-extern volatile bool            data_post;      //need post data immediately
-extern volatile uint8_t         fn_mag_int;     //0:no data save,1:save data,2:save data and post
-extern float f9_a,f9_b;
+extern volatile uint8_t door_status;
+extern volatile bool data_post;     //need post data immediately
+extern volatile uint8_t fn_mag_int; //0:no data save,1:save data,2:save data and post
+extern float f9_a, f9_b;
 /*******************************************************************************
 //Magnetic Sensor Status
 *******************************************************************************/
 uint8_t MagSensor_Status(void)
 {
-  if(GPIOPinRead(MAG_PORT,MAG_PIN))
+  if (GPIOPinRead(MAG_PORT, MAG_PIN))
   {
     return DOOR_OPEN;
   }
@@ -50,27 +50,28 @@ uint8_t MagSensor_Status(void)
 //Magnetic Sensor Task
 *******************************************************************************/
 void MagneticSensorTask(void *pvParameters)
-{ 
+{
   SensorMessage mMsg;
-  
-  for(;;)
-  {
-    osi_SyncObjWait(&xBinary4,OSI_WAIT_FOREVER);        //Wait Magnetic Sensor Interrupt Message
-    
-    door_status=MagSensor_Status();
 
-    osi_at24c08_write_byte(DOOR_STATUS_ADDR,door_status);       //save door status
-    
-    if(fn_mag_int)
+  for (;;)
+  {
+    // osi_SyncObjWait(&xBinary4,OSI_WAIT_FOREVER);        //Wait Magnetic Sensor Interrupt Message
+    ulTaskNotifyTake(pdTRUE, -1);
+
+    door_status = MagSensor_Status();
+
+    osi_at24c08_write_byte(DOOR_STATUS_ADDR, door_status); //save door status
+
+    if (fn_mag_int)
     {
-      if(fn_mag_int==2)
+      if (fn_mag_int == 2)
       {
-        data_post=1;  //Need Post Data Immediately
+        data_post = 1; //Need Post Data Immediately
       }
-      
-      mMsg.sensornum=MAG_NUM;           //Message Number
-      mMsg.sensorval=f9_a*door_status + f9_b;       //Message Value
-      osi_MsgQWrite(&xQueue0,&mMsg,OSI_NO_WAIT);           //Send Magnetic Sensor Data Message
+
+      mMsg.sensornum = MAG_NUM;                    //Message Number
+      mMsg.sensorval = f9_a * door_status + f9_b;  //Message Value
+      osi_MsgQWrite(&xQueue0, &mMsg, OSI_NO_WAIT); //Send Magnetic Sensor Data Message
     }
   }
 }
@@ -79,7 +80,3 @@ void MagneticSensorTask(void *pvParameters)
 /*******************************************************************************
                                       END         
 *******************************************************************************/
-
-
-
-
