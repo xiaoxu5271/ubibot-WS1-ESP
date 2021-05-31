@@ -43,7 +43,9 @@
                 "msgtype.h": "c",
                 "httpclienttask.h": "c",
                 "app_config.h": "c",
-                "jsonparse.h": "c"
+                "jsonparse.h": "c",
+                "uarttask.h": "c",
+                "complex": "c"
         },
         "idf.flashType": "UART",
 }

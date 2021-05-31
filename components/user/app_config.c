@@ -25,6 +25,7 @@
 #include "at24c08.h"
 #include "JsonParse.h"
 #include "PeripheralDriver.h"
+#include "UartTask.h"
 
 #include "app_config.h"
 #define TAG "NET_CFG"
@@ -48,7 +49,7 @@ extern SemaphoreHandle_t xMutex4; //Used for UART Lock
 
 char wifi_buf[180];
 
-static void tcp_server_task(void *pvParameters);
+void WlanAPMode(void *pvParameters);
 
 void timer_wifi_cb(void *arg);
 esp_timer_handle_t timer_wifi_handle = NULL; //定时器句柄
@@ -156,7 +157,7 @@ void init_wifi(void) //
     snprintf(AP_SSID, 15, "Ubibot-%s", temp);
     ESP_LOGI(TAG, "AP_SSID:%s", AP_SSID);
     //创建TCP监听端口 ，常开
-    xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 7, NULL);
+    // xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 7, NULL);
 }
 
 void stop_user_wifi(void)
@@ -359,15 +360,15 @@ void start_softap(void)
     ESP_LOGI(TAG, "wifi_init_softap finished. ");
 }
 
-int Tcp_Send(int sock, char *Send_Buff)
+int Tcp_Send(int sock, const char *Send_Buff, uint16_t Send_Buff_len, uint8_t flag)
 {
-    uint16_t Send_Buff_len = strlen(Send_Buff);
+    uint16_t Send_Buff_len;
     int to_write = Send_Buff_len;
     int written = 0;
     // ESP_LOGI(TAG, "Send_Buff:%s,Len:%d,sock:%d", Send_Buff, Send_Buff_len, sock);
     while (to_write > 0)
     {
-        written = send(sock, Send_Buff + (Send_Buff_len - to_write), to_write, 0);
+        written = send(sock, Send_Buff + (Send_Buff_len - to_write), to_write, flag);
         if (written < 0)
         {
             ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
@@ -734,4 +735,272 @@ short osi_WiFi_Connect_Test(void)
     xSemaphoreGive(xMutex2);
 
     return test_status;
+}
+
+extern bool ap_mode_status;
+extern bool AP_MODE_END_FLAG;
+extern volatile bool AP_MODE_END;
+extern TaskHandle_t xBinary13; //Task End Check
+extern web_post_wifi web_post_wifi_msg;
+extern TaskHandle_t GR_LED_TaskHandle;
+extern TaskHandle_t GR_LED_FAST_TaskHandle;
+extern char UartGet[UART_REV_BUF_LEN];
+extern volatile unsigned long POST_NUM;
+extern volatile unsigned long DELETE_ADDR, POST_ADDR, WRITE_ADDR;
+extern volatile uint16_t sys_run_time;
+
+extern void UpdateTimeTask(void *pvParameters);
+extern void ApikeyGetTask(void *pvParameters);
+/*******************************************************************************
+//start wlan AP mode
+*******************************************************************************/
+void WlanAPMode(void *pvParameters)
+{
+    char Readflag[16];
+    int lRetVal = -1;
+    int sock;
+    char addr_str[128];
+    int ip_protocol = 0;
+    struct sockaddr_in6 dest_addr;
+    struct sockaddr_in *dest_addr_ip4 = (struct sockaddr_in *)&dest_addr;
+    dest_addr_ip4->sin_addr.s_addr = htonl(INADDR_ANY);
+    dest_addr_ip4->sin_family = AF_INET;
+    dest_addr_ip4->sin_port = htons(TCP_PORT);
+    ip_protocol = IPPROTO_IP;
+    int listen_sock;
+
+    ap_mode_status = 1;
+    AP_MODE_END_FLAG = 1;
+
+    // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
+    vTaskNotifyGiveFromISR(xBinary13, NULL);
+
+    Web_read_product();
+
+    Web_read_errcode();
+
+    memset(&web_post_wifi_msg, 0, sizeof(web_post_wifi_msg));
+
+    xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
+
+    // osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+    xSemaphoreTake(xMutex2, -1);
+
+    start_softap();
+
+    listen_sock = socket(AF_INET, SOCK_STREAM, ip_protocol);
+    if (listen_sock < 0)
+    {
+        ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
+        goto CLEAN_UP;
+    }
+
+    ESP_LOGI(TAG, "Socket created");
+
+    int err = bind(listen_sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    if (err != 0)
+    {
+        ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+        ESP_LOGE(TAG, "IPPROTO: %d", AF_INET);
+        goto CLEAN_UP;
+    }
+    ESP_LOGI(TAG, "Socket bound, port %d", TCP_PORT);
+
+    err = listen(listen_sock, 1);
+    if (err != 0)
+    {
+        ESP_LOGE(TAG, "Error occurred during listen: errno %d", errno);
+        goto CLEAN_UP;
+    }
+
+    // for (;;)
+    // {
+    //等待AP下游设备接入，获取到设备IP
+    // while (!IS_IP_LEASED(g_ulStatus)) //wating for the client to connect
+    // {
+    //     osi_Sleep(5); //delay 5ms
+
+    //     sys_run_time = 0; //clear system time out
+    // }
+
+    for (;;)
+    {
+        ESP_LOGI(TAG, "Socket listening");
+        struct sockaddr_in6 source_addr; // Large enough for both IPv4 or IPv6
+        uint addr_len = sizeof(source_addr);
+        ESP_LOGI(TAG, "%d", __LINE__);
+        sock = accept(listen_sock, (struct sockaddr *)&source_addr, &addr_len);
+        ESP_LOGI(TAG, "%d", __LINE__);
+        if (sock < 0)
+        {
+            ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
+            break;
+        }
+
+        // Convert ip address to string
+        if (source_addr.sin6_family == PF_INET)
+        {
+            inet_ntoa_r(((struct sockaddr_in *)&source_addr)->sin_addr.s_addr, addr_str, sizeof(addr_str) - 1);
+            ESP_LOGI(TAG, "%d", __LINE__);
+        }
+        else if (source_addr.sin6_family == PF_INET6)
+        {
+            inet6_ntoa_r(source_addr.sin6_addr, addr_str, sizeof(addr_str) - 1);
+            ESP_LOGI(TAG, "%d", __LINE__);
+        }
+        ESP_LOGI(TAG, "Socket accepted ip address: %s", addr_str);
+
+        memset(UartGet, 0, sizeof(UartGet));
+        int len = recv(sock, UartGet, sizeof(UartGet) - 1, 0);
+        if (len < 0)
+        {
+            ESP_LOGE(TAG, "Error occurred during receiving: errno %d", errno);
+        }
+        else if (len == 0)
+        {
+            ESP_LOGW(TAG, "Connection closed");
+        }
+        else
+        {
+            UartGet[len] = '\0';
+
+#ifdef DEBUG
+            osi_UartPrint_Mul("TCP_Recivebuffer:", UartGet);
+#endif
+
+            lRetVal = ParseTcpUartCmd(UartGet);
+            if (lRetVal < 0)
+            {
+                Tcp_Send(sock, FAILURED_CODE, strlen(FAILURED_CODE), 0);
+            }
+            else if (lRetVal == 0)
+            {
+                Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
+            }
+            else if (lRetVal == 1) //Command:SetupWifi
+            {
+                Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
+                break;
+            }
+            else if (lRetVal == 2) //{command: ReadProduct}
+            {
+                memset(UartGet, 0, sizeof(UartGet));
+                Read_Product_Set(UartGet, sizeof(UartGet));
+                Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+            }
+            else if (lRetVal == 3) //Command:ReadWifi
+            {
+                memset(UartGet, 0, sizeof(UartGet));
+                Read_Wifi_Set(UartGet, sizeof(UartGet));
+                Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+            }
+            else if (lRetVal == 4) //Command:GetLastError
+            {
+                memset(UartGet, 0, sizeof(UartGet));
+                Read_System_ERROR_Code(UartGet, sizeof(UartGet));
+                Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+            }
+            else if (lRetVal == 5) //command:BreakOut
+            {
+                break;
+            }
+            else if (lRetVal == 6) //Command:ReadMetaData
+            {
+                memset(UartGet, 0, sizeof(UartGet));
+                Cmd_Read_MetaData(UartGet, sizeof(UartGet));
+                Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+            }
+            else if (lRetVal == 9) //Command:ReadData
+            {
+                char data_len_buf[25];
+                unsigned long read_addr;
+                unsigned long save_data_num;
+
+                osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
+
+                if (POST_NUM)
+                {
+                    save_data_num = POST_NUM;
+                    read_addr = POST_ADDR;
+
+                    snprintf(data_len_buf, sizeof(data_len_buf), "{\"save_data_sum\":%d}", save_data_num);
+                    Tcp_Send(sock, data_len_buf, strlen(data_len_buf), 0);
+                    Tcp_Send(sock, "\r\n", strlen("\r\n"), 0);
+
+                    while (save_data_num--)
+                    {
+                        memset(UartGet, 0, sizeof(UartGet));
+                        osi_w25q_ReadData(read_addr, UartGet, 0xff, NULL);
+                        Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+                        Tcp_Send(sock, "\r\n", strlen("\r\n"), 0);
+                        read_addr += 1 + strlen(UartGet); //end whit '!'
+                        sys_run_time = 0;                 //clear system time out
+                    }
+                }
+            }
+            else if (lRetVal == 10) //Command:ClearData
+            {
+                Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
+                osi_TaskDelete(&GR_LED_TaskHandle);                                                                    //delete Green and Red Led Flash Task
+                SET_GREEN_LED_OFF();                                                                                   //Set Green Led Off
+                osi_Save_Data_Reset();                                                                                 //Nor Flash Memory Chip Reset
+                xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
+            }
+        }
+        sys_run_time = 0; //clear system time out
+    }
+
+    sys_run_time = 0; //clear system time out
+
+    if ((lRetVal == 1) || (lRetVal == 5) || (AP_MODE_END))
+    {
+        break;
+    }
+    // }
+
+CLEAN_UP:
+    // esp_restart();
+    close(listen_sock);
+    stop_user_wifi();
+
+    osi_TaskDelete(&GR_LED_TaskHandle); //delete Green and Red Led Flash Task
+    SET_GREEN_LED_OFF();                //Set Green Led Off
+    SET_RED_LED_OFF();                  //Set Red Led Off
+
+    if ((lRetVal == 1) || (AP_MODE_END))
+    {
+        osi_bell_makeSound(200);
+        xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 7, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task
+        lRetVal = WiFi_Connect_Test();                                                                                        //wlan connect test
+        osi_TaskDelete(&GR_LED_FAST_TaskHandle);                                                                              //delete Green and Red Led Fast Flash Task
+        SET_GREEN_LED_OFF();                                                                                                  //Set Green Led Off
+        SET_RED_LED_OFF();                                                                                                    //Set Red Led Off
+        osi_bell_makeSound(200);
+
+        if (lRetVal < 0)
+        {
+            Red_Led_Flashed(3, 3);
+        }
+        else
+        {
+            Green_Led_Flashed(3, 3);
+        }
+    }
+
+    osi_at24c08_ReadData(DATAURI_FLAG_ADDR, (uint8_t *)Readflag, sizeof(Readflag), 1); //read datapost addr
+    if (!strcmp((char const *)Readflag, DATA_URI))                                     //check datapost addr
+    {
+        xTaskCreate(UpdateTimeTask, "UpdateTimeTask", 1024, NULL, 7, NULL); //Create UpdataTime Task
+    }
+    else
+    {
+        xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
+    }
+
+    osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+    ap_mode_status = 0;
+    AP_MODE_END_FLAG = 0;
+    // MAP_UtilsDelay(80000); //delay about 6ms
+
+    vTaskDelete(NULL);
 }

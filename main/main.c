@@ -294,6 +294,11 @@ web_errcode web_errcode_msg;
 web_post_wifi web_post_wifi_msg;
 char web_resp_buf[24] = {0};
 
+void UpdateTimeTask(void *pvParameters);
+void ApikeyGetTask(void *pvParameters);
+
+extern void WlanAPMode(void *pvParameters);
+
 /*******************************************************************************
 //read product 
 *******************************************************************************/
@@ -325,7 +330,8 @@ void Web_read_product(void)
 
 	memset(read_buf, 0, sizeof(read_buf));
 
-	osi_at24c08_ReadData(MAC_ADDR, (uint8_t *)mac_addr, SL_MAC_ADDR_LEN, 0); //Read MAC
+	// osi_at24c08_ReadData(MAC_ADDR, (uint8_t *)mac_addr, SL_MAC_ADDR_LEN, 0); //Read MAC
+	esp_read_mac(mac_addr, 0); //获取芯片内部默认出厂MAC
 
 	snprintf((char *)read_buf, sizeof(read_buf), "%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
 
@@ -412,369 +418,16 @@ void Web_read_errcode(void)
 }
 
 /*******************************************************************************
-//Http server data resolver task
-*******************************************************************************/
-void Httpserver_parse_Task(void *pvParameters)
-{
-	uint8_t http_msg;
-	short res_val = -1;
-
-	for (;;)
-	{
-		// osi_MsgQRead(&HttpMsg_Queue, &http_msg, OSI_WAIT_FOREVER); //Wait Message
-		xQueueReceive(HttpMsg_Queue, &http_msg, portMAX_DELAY);
-
-		osi_Sleep(100); //delay about 100ms
-
-		AP_MODE_END = 1;
-
-		memset(web_resp_buf, 0, sizeof(web_resp_buf));
-
-		switch (http_msg)
-		{
-		case HTTPSERVER_WIFI_MSG:
-		{
-			osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
-
-			res_val = Parse_HttpMsg((char *)web_post_wifi_msg.wst);
-			if (res_val < 0)
-			{
-				AP_MODE_END = 0;
-
-				memcpy(web_resp_buf, "{\"result\":\"failured\"}", strlen("{\"result\":\"failured\"}"));
-			}
-			else
-			{
-				memcpy(web_resp_buf, "{\"result\":\"success\"}", strlen("{\"result\":\"success\"}"));
-			}
-			osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
-
-			osi_at24c08_write_byte(PASSWORD_LEN_ADDR, strlen((char *)web_post_wifi_msg.wpw)); //clear password len
-
-			osi_at24c08_WriteData(PASSWORD_ADDR, web_post_wifi_msg.wpw, strlen((char *)web_post_wifi_msg.wpw), 0); //save password
-
-			memset(&web_post_wifi_msg, 0, sizeof(web_post_wifi_msg));
-		}
-		break;
-
-		default:
-			break;
-		}
-	}
-}
-
-/*******************************************************************************
-//brief This function handles HTTP server events
-//pServerEvent - Contains the relevant event information
-//pServerResponse - Should be filled by the user with the relevant response information
-*******************************************************************************/
-void SimpleLinkHttpServerCallback(SlHttpServerEvent_t *pSlHttpServerEvent,
-								  SlHttpServerResponse_t *pSlHttpServerResponse)
-{
-
-	unsigned char strLenVal = 0;
-
-	if (!pSlHttpServerEvent || !pSlHttpServerResponse)
-	{
-		return;
-	}
-
-	switch (pSlHttpServerEvent->Event)
-	{
-		unsigned char *ptr;
-
-	case SL_NETAPP_HTTPGETTOKENVALUE_EVENT:
-	{
-		ptr = pSlHttpServerResponse->ResponseData.token_value.data;
-		pSlHttpServerResponse->ResponseData.token_value.len = 0;
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_PID,
-				   strlen((const char *)__SL_G_PID)) == 0) //product
-		{
-			strLenVal = strlen((char *)web_product_msg.pid);
-			memcpy(ptr, web_product_msg.pid, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_PSN,
-				   strlen((const char *)__SL_G_PSN)) == 0)
-		{
-			strLenVal = strlen((char *)web_product_msg.psn);
-			memcpy(ptr, web_product_msg.psn, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_HST,
-				   strlen((const char *)__SL_G_HST)) == 0)
-		{
-			strLenVal = strlen((char *)web_product_msg.hst);
-			memcpy(ptr, web_product_msg.hst, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_MAC,
-				   strlen((const char *)__SL_G_MAC)) == 0)
-		{
-			strLenVal = strlen((char *)web_product_msg.mac);
-			memcpy(ptr, web_product_msg.mac, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_PFW,
-				   strlen((const char *)__SL_G_PFW)) == 0)
-		{
-			strLenVal = strlen((char *)web_product_msg.pfw);
-			memcpy(ptr, web_product_msg.pfw, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_TWS,
-				   strlen((const char *)__SL_G_TWS)) == 0)
-		{
-			strLenVal = strlen((char *)web_product_msg.ssid);
-			memcpy(ptr, web_product_msg.ssid, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF0,
-				   strlen((const char *)__SL_G_WF0)) == 0) //wifi
-		{
-			strLenVal = strlen(ssid_buf[0]);
-			memcpy(ptr, ssid_buf[0], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF1,
-				   strlen((const char *)__SL_G_WF1)) == 0)
-		{
-			strLenVal = strlen(ssid_buf[1]);
-			memcpy(ptr, ssid_buf[1], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF2,
-				   strlen((const char *)__SL_G_WF2)) == 0)
-		{
-			strLenVal = strlen(ssid_buf[2]);
-			memcpy(ptr, ssid_buf[2], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF3,
-				   strlen((const char *)__SL_G_WF3)) == 0)
-		{
-			strLenVal = strlen(ssid_buf[3]);
-			memcpy(ptr, ssid_buf[3], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF4,
-				   strlen((const char *)__SL_G_WF4)) == 0)
-		{
-			strLenVal = strlen(ssid_buf[4]);
-			memcpy(ptr, ssid_buf[4], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF5,
-				   strlen((const char *)__SL_G_WF5)) == 0)
-		{
-			strLenVal = strlen(ssid_buf[5]);
-			memcpy(ptr, ssid_buf[5], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF6,
-				   strlen((const char *)__SL_G_WF6)) == 0)
-		{
-			strLenVal = strlen(ssid_buf[6]);
-			memcpy(ptr, ssid_buf[6], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF7,
-				   strlen((const char *)__SL_G_WF7)) == 0)
-		{
-			strLenVal = strlen(ssid_buf[7]);
-			memcpy(ptr, ssid_buf[7], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF8,
-				   strlen((const char *)__SL_G_WF8)) == 0)
-		{
-			strLenVal = strlen(ssid_buf[8]);
-			memcpy(ptr, ssid_buf[8], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WF9,
-				   strlen((const char *)__SL_G_WF9)) == 0)
-		{
-			strLenVal = strlen(ssid_buf[9]);
-			memcpy(ptr, ssid_buf[9], strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WRT,
-				   strlen((const char *)__SL_G_WRT)) == 0) //error
-		{
-			strLenVal = strlen((char *)web_errcode_msg.wrt);
-			memcpy(ptr, web_errcode_msg.wrt, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_CWF,
-				   strlen((const char *)__SL_G_CWF)) == 0)
-		{
-			strLenVal = strlen((char *)web_errcode_msg.cwf);
-			memcpy(ptr, web_errcode_msg.cwf, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_CSF,
-				   strlen((const char *)__SL_G_CSF)) == 0)
-		{
-			strLenVal = strlen((char *)web_errcode_msg.csf);
-			memcpy(ptr, web_errcode_msg.csf, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_AGF,
-				   strlen((const char *)__SL_G_AGF)) == 0)
-		{
-			strLenVal = strlen((char *)web_errcode_msg.agf);
-			memcpy(ptr, web_errcode_msg.agf, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_MDE,
-				   strlen((const char *)__SL_G_MDE)) == 0)
-		{
-			strLenVal = strlen((char *)web_errcode_msg.mde);
-			memcpy(ptr, web_errcode_msg.mde, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_PDE,
-				   strlen((const char *)__SL_G_PDE)) == 0)
-		{
-			strLenVal = strlen((char *)web_errcode_msg.pde);
-			memcpy(ptr, web_errcode_msg.pde, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_PDF,
-				   strlen((const char *)__SL_G_PDF)) == 0)
-		{
-			strLenVal = strlen((char *)web_errcode_msg.pdf);
-			memcpy(ptr, web_errcode_msg.pdf, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_SWF,
-				   strlen((const char *)__SL_G_SWF)) == 0)
-		{
-			strLenVal = strlen((char *)web_errcode_msg.swf);
-			memcpy(ptr, web_errcode_msg.swf, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_WPW,
-				   strlen((const char *)__SL_G_WPW)) == 0)
-		{
-			strLenVal = strlen((char *)web_errcode_msg.wpw);
-			memcpy(ptr, web_errcode_msg.wpw, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-
-		if (memcmp(pSlHttpServerEvent->EventData.httpTokenName.data, __SL_G_RSP,
-				   strlen((const char *)__SL_G_RSP)) == 0) //resp
-		{
-			strLenVal = strlen(web_resp_buf);
-			memcpy(ptr, web_resp_buf, strLenVal);
-			ptr += strLenVal;
-			pSlHttpServerResponse->ResponseData.token_value.len += strLenVal;
-		}
-	}
-	break;
-
-	case SL_NETAPP_HTTPPOSTTOKENVALUE_EVENT:
-	{
-		uint8_t mag_val;
-
-		char recv_buf_len;
-		ptr = pSlHttpServerEvent->EventData.httpPostData.token_name.data;
-		if (memcmp(ptr, __SL_P_WST, strlen((const char *)__SL_P_WST)) == 0) //wifi
-		{
-			ptr = pSlHttpServerEvent->EventData.httpPostData.token_value.data;
-			recv_buf_len = pSlHttpServerEvent->EventData.httpPostData.token_value.len;
-			//          UART_PRINT("len:%d\n\r",recv_buf_len);
-			ptr[recv_buf_len] = '\0';
-			//          UART_PRINT("wst_buf:%s\n\r",(const char *)ptr);
-
-			memcpy(web_post_wifi_msg.wst, ptr, recv_buf_len);
-
-			mag_val = HTTPSERVER_WIFI_MSG;
-			osi_MsgQWrite(&HttpMsg_Queue, &mag_val, OSI_NO_WAIT); //send http server data resolve message
-		}
-		if (memcmp(ptr, __SL_P_WPW, strlen((const char *)__SL_P_WPW)) == 0)
-		{
-			ptr = pSlHttpServerEvent->EventData.httpPostData.token_value.data;
-			recv_buf_len = pSlHttpServerEvent->EventData.httpPostData.token_value.len;
-			//          UART_PRINT("len:%d\n\r",recv_buf_len);
-			ptr[recv_buf_len] = '\0';
-			//          UART_PRINT("wpw_buf:%s\n\r",(const char *)ptr);
-
-			memcpy(web_post_wifi_msg.wpw, ptr, recv_buf_len);
-		}
-	}
-	break;
-
-	default:
-		break;
-	}
-}
-
-/*******************************************************************************
-//brief This function handles General Events
-//pDevEvent - Pointer to General Event Info
-*******************************************************************************/
-void SimpleLinkGeneralEventHandler(SlDeviceEvent_t *pDevEvent)
-{
-#ifdef DEBUG
-	//Most of the general errors are not FATAL are are to be handled,appropriately by the application
-	UART_PRINT("[GENERAL EVENT] - ID=[%d] Sender=[%d]\n\n",
-			   pDevEvent->EventData.deviceEvent.status,
-			   pDevEvent->EventData.deviceEvent.sender);
-#endif
-
-	switch (pDevEvent->EventData.deviceEvent.status)
-	{
-	case SL_ERROR_CON_MGMT_STATUS_DISCONNECT_DURING_CONNECT:
-	{
-		System_ERROR_Save(WF_PWD_WR_ERR); //Save ERROR Data
-	}
-	break;
-	default:
-		break;
-	}
-}
-
-/*******************************************************************************
 //Routine to feed to watchdog
 *******************************************************************************/
-void WatchdogAck(void)
-{
-#ifdef USE_WD
+// void WatchdogAck(void)
+// {
+// #ifdef USE_WD
 
-	WatchdogIntClear(WDT_BASE); //Acknowledge watchdog by clearing interrupt
+// 	WatchdogIntClear(WDT_BASE); //Acknowledge watchdog by clearing interrupt
 
-#endif
-}
+// #endif
+// }
 
 /*******************************************************************************
 //calculat the fn min sleep time
@@ -858,151 +511,90 @@ static long fn_t_sleep_time_min(void)
 
 /*******************************************************************************
 //callback function for timer interrupt handler
+CC3200 设置睡眠时间，是在运行中设置，设置后立即即使，如果还未进入睡眠而计时到，则进入此函数
 *******************************************************************************/
-void TimerCallback(void *vParam)
-{
-#ifdef DEBUG
+// void TimerCallback(void *vParam)
+// {
+// #ifdef DEBUG
 
-	UART_PRINT("timer wake up\r\n");
+// 	UART_PRINT("timer wake up\r\n");
 
-#endif
+// #endif
 
-#ifdef CHECK_WATER_MARK
+// #ifdef CHECK_WATER_MARK
 
-	// osi_SyncObjSignalFromISR(&xBinary14);
-	vTaskNotifyGiveFromISR(xBinary14, NULL);
+// 	// osi_SyncObjSignalFromISR(&xBinary14);
+// 	vTaskNotifyGiveFromISR(xBinary14, NULL);
 
-#endif
+// #endif
 
-	// osi_SyncObjSignalFromISR(&xBinary9); //check Task start time
-	vTaskNotifyGiveFromISR(xBinary9, NULL);
+// 	// osi_SyncObjSignalFromISR(&xBinary9); //check Task start time
+// 	vTaskNotifyGiveFromISR(xBinary9, NULL);
 
-	return;
-}
+// 	return;
+// }
 
-cc_hndl tTimerHndl = NULL; //handle for the Timer
+// cc_hndl tTimerHndl = NULL; //handle for the Timer
 
 /*******************************************************************************
 //set Timer as a wake up source from low power modes
 *******************************************************************************/
-int SetTimerAsWkUp(long slp_time, bool call_back)
-{
-	int Set_val = -1;
-	struct cc_timer_cfg sRealTimeTimer;
-	struct u64_time sIntervalTimer;
-	struct u64_time sInitTime;
+// int SetTimerAsWkUp(long slp_time, bool call_back)
+// {
+// 	int Set_val = -1;
+// 	struct cc_timer_cfg sRealTimeTimer;
+// 	struct u64_time sIntervalTimer;
+// 	struct u64_time sInitTime;
 
-	if (tTimerHndl != NULL)
-	{
-		Set_val = cc_timer_stop(tTimerHndl); //Stop an active timer
-		if (Set_val < 0)
-		{
-			return FAILURE;
-		}
+// 	if (tTimerHndl != NULL)
+// 	{
+// 		Set_val = cc_timer_stop(tTimerHndl); //Stop an active timer
+// 		if (Set_val < 0)
+// 		{
+// 			return FAILURE;
+// 		}
 
-		Set_val = cc_timer_delete(tTimerHndl); //Deletes an inactive timer
-		if (Set_val < 0)
-		{
-			return FAILURE;
-		}
-	}
+// 		Set_val = cc_timer_delete(tTimerHndl); //Deletes an inactive timer
+// 		if (Set_val < 0)
+// 		{
+// 			return FAILURE;
+// 		}
+// 	}
 
-	sInitTime.secs = 0;
-	sInitTime.nsec = 0;
-	Set_val = cc_rtc_set(&sInitTime);
-	if (Set_val < 0)
-	{
-		return FAILURE;
-	}
+// 	sInitTime.secs = 0;
+// 	sInitTime.nsec = 0;
+// 	Set_val = cc_rtc_set(&sInitTime);
+// 	if (Set_val < 0)
+// 	{
+// 		return FAILURE;
+// 	}
 
-	sRealTimeTimer.source = HW_REALTIME_CLK;
-	if (call_back)
-	{
-		sRealTimeTimer.timeout_cb = TimerCallback;
-	}
-	else
-	{
-		sRealTimeTimer.timeout_cb = NULL;
-	}
-	sRealTimeTimer.cb_param = NULL;
-	tTimerHndl = cc_timer_create(&sRealTimeTimer);
-	if (tTimerHndl == NULL)
-	{
-		return FAILURE;
-	}
+// 	sRealTimeTimer.source = HW_REALTIME_CLK;
+// 	if (call_back)
+// 	{
+// 		sRealTimeTimer.timeout_cb = TimerCallback;
+// 	}
+// 	else
+// 	{
+// 		sRealTimeTimer.timeout_cb = NULL;
+// 	}
+// 	sRealTimeTimer.cb_param = NULL;
+// 	tTimerHndl = cc_timer_create(&sRealTimeTimer);
+// 	if (tTimerHndl == NULL)
+// 	{
+// 		return FAILURE;
+// 	}
 
-	sIntervalTimer.secs = slp_time;
-	sIntervalTimer.nsec = 0;
-	Set_val = cc_timer_start(tTimerHndl, &sIntervalTimer, OPT_TIMER_PERIODIC);
-	if (Set_val < 0)
-	{
-		return FAILURE;
-	}
+// 	sIntervalTimer.secs = slp_time;
+// 	sIntervalTimer.nsec = 0;
+// 	Set_val = cc_timer_start(tTimerHndl, &sIntervalTimer, OPT_TIMER_PERIODIC);
+// 	if (Set_val < 0)
+// 	{
+// 		return FAILURE;
+// 	}
 
-	return SUCCESS;
-}
-
-/*******************************************************************************
-//set Button Int Pin as wake up source
-*******************************************************************************/
-cc_hndl SetButtonAsWkUp(void)
-{
-	cc_hndl tGPIOHndl;
-
-	tGPIOHndl = cc_gpio_open(BUTTON_SRC_WKUP, GPIO_DIR_INPUT); //setting up GPIO as a wk up source
-
-	cc_gpio_enable_notification(tGPIOHndl, BUTTON_SRC_WKUP, INT_FALLING_EDGE,
-								(GPIO_TYPE_NORMAL | GPIO_TYPE_WAKE_SOURCE)); //configuring other related parameters
-
-	return (tGPIOHndl);
-}
-
-#ifdef MAG_SENSOR
-/*******************************************************************************
-//set Mag Int pin as wake up source
-*******************************************************************************/
-cc_hndl SetMAGAsWkUp(void)
-{
-	cc_hndl tGPIOHndl;
-
-	tGPIOHndl = cc_gpio_open(MAG_SRC_WKUP, GPIO_DIR_INPUT); //setting up GPIO as a wk up source
-
-	cc_gpio_enable_notification(tGPIOHndl, MAG_SRC_WKUP, INT_BOTH_EDGE,
-								(GPIO_TYPE_NORMAL | GPIO_TYPE_WAKE_SOURCE)); //configuring other related parameters
-
-	return (tGPIOHndl);
-}
-#endif
-
-/*******************************************************************************
-//set AcceSensor Int pin as wake up source
-*******************************************************************************/
-cc_hndl SetACCEAsWkUp(void)
-{
-	cc_hndl tGPIOHndl;
-
-	tGPIOHndl = cc_gpio_open(ACCE_SRC_WKUP, GPIO_DIR_INPUT); //setting up GPIO as a wk up source
-
-	cc_gpio_enable_notification(tGPIOHndl, ACCE_SRC_WKUP, INT_FALLING_EDGE,
-								(GPIO_TYPE_NORMAL | GPIO_TYPE_WAKE_SOURCE)); //configuring other related parameters
-
-	return (tGPIOHndl);
-}
-
-/*******************************************************************************
-//set USB Int Pin as wake up source
-*******************************************************************************/
-cc_hndl SetUSBAsWkUp(void)
-{
-	cc_hndl tGPIOHndl;
-
-	tGPIOHndl = cc_gpio_open(USB_SRC_WKUP, GPIO_DIR_INPUT); //setting up GPIO as a wk up source
-
-	cc_gpio_enable_notification(tGPIOHndl, USB_SRC_WKUP, INT_BOTH_EDGE,
-								(GPIO_TYPE_NORMAL | GPIO_TYPE_WAKE_SOURCE)); //configuring other related parameters
-
-	return (tGPIOHndl);
-}
+// 	return SUCCESS;
+// }
 
 /*******************************************************************************
 //set GPIOs as a wake up source from low power modes
@@ -1026,30 +618,6 @@ void Set_GPIO_AsWkUp(void)
 
 	printf("Enabling EXT1 wakeup on pins GPIO%d, GPIO%d\n", ext_wakeup_pin_1, ext_wakeup_pin_2);
 	esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask | ext_wakeup_pin_2_mask, ESP_EXT1_WAKEUP_ALL_LOW);
-}
-
-/*******************************************************************************
-//Board Initialization & Configuration 
-*******************************************************************************/
-static void BoardInit(void)
-{
-#ifndef USE_TIRTOS
-
-#if defined(ccs) || defined(gcc)
-	IntVTableBaseSet((unsigned long)&g_pfnVectors[0]); //Set vector table base
-#endif
-
-#if defined(ewarm)
-	IntVTableBaseSet((unsigned long)&__vector_table); //Set vector table base
-#endif
-
-#endif
-
-	MAP_IntMasterEnable(); //Enable Processor
-
-	MAP_IntEnable(FAULT_SYSTICK);
-
-	PRCMCC3200MCUInit();
 }
 
 /*******************************************************************************
@@ -1196,7 +764,8 @@ void Timer_Check_Task(void *pvParameters)
 			osi_at24c08_write(FN_BATTERY_T_ADDR, fn_battery_t);
 		}
 
-		osi_MsgQWrite(&xQueue3, &msg_slp_val, OSI_NO_WAIT); //send to WatchDog and SleepTimer message
+		// osi_MsgQWrite(&xQueue3, &msg_slp_val, OSI_NO_WAIT); //send to WatchDog and SleepTimer message
+		xQueueSend(xQueue3, &msg_slp_val, -1);
 	}
 }
 
@@ -1285,7 +854,7 @@ void Usb_Mode_Task(void *pvParameters)
 
 	if (usb_status == 0)
 	{
-		// if (GPIOPinRead(USB_PORT, USB_PIN)) //USB Mode GPIO Wake Up
+		// if (gpio_get_level(USB_PIN)) //USB Mode GPIO Wake Up
 		if (gpio_get_level(USB_PIN))
 		{
 			usb_status_val = 1;
@@ -1296,7 +865,7 @@ void Usb_Mode_Task(void *pvParameters)
 	}
 	else
 	{
-		// if (!GPIOPinRead(USB_PORT, USB_PIN)) //USB Mode GPIO Wake Up
+		// if (!gpio_get_level(USB_PIN)) //USB Mode GPIO Wake Up
 		if (!gpio_get_level(USB_PIN))
 		{
 			usb_status = 0;
@@ -1334,7 +903,7 @@ void Usb_Mode_Task(void *pvParameters)
 
 			Green_Led_Flashed(1, 4); //Green Led Flashed 0.6s
 
-			// if (!GPIOPinRead(USB_PORT, USB_PIN)) //read usb pin status
+			// if (!gpio_get_level(USB_PIN)) //read usb pin status
 			if (!gpio_get_level(USB_PIN))
 			{
 				usb_status = 0;
@@ -1374,10 +943,10 @@ void Usb_Mode_Task(void *pvParameters)
 *******************************************************************************/
 static void WakeUp_Process(void)
 {
-	// usb_status_val = GPIOPinRead(USB_PORT, USB_PIN);
+	// usb_status_val = gpio_get_level(USB_PIN);
 	usb_status_val = gpio_get_level(USB_PIN);
 
-	// if (!GPIOPinRead(BUTTON_PORT, BUTTON_PIN)) //BUTTON GPIO Wake Up
+	// if (!gpio_get_level(BUTTON_PIN)) //BUTTON GPIO Wake Up
 	if (!gpio_get_level(BUTTON_PIN))
 	{
 		// osi_SyncObjSignalFromISR(&xBinary1);
@@ -1470,9 +1039,9 @@ void ApikeyGetTask(void *pvParameters)
 {
 	uint8_t re_try;
 	int lRetVal = -1;
-	OsiTaskHandle api_TaskHandle = NULL;
 
-	osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+	// osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+	xSemaphoreTake(xMutex2, -1);
 
 	PostSetData = 1;
 
@@ -1504,9 +1073,9 @@ void ApikeyGetTask(void *pvParameters)
 
 				Wlan_Disconnect_AP(); //wlan disconnect form the ap
 
-				sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
+				// sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
 
-				MAP_UtilsDelay(80000); //delay about 6ms
+				// MAP_UtilsDelay(80000); //delay about 6ms
 
 				if (lRetVal == SUCCESS)
 				{
@@ -1517,9 +1086,9 @@ void ApikeyGetTask(void *pvParameters)
 			{
 				Wlan_Disconnect_AP(); //wlan disconnect form the ap
 
-				sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
+				// sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
 
-				MAP_UtilsDelay(80000); //delay about 6ms
+				// MAP_UtilsDelay(80000); //delay about 6ms
 			}
 		}
 	}
@@ -1528,7 +1097,8 @@ void ApikeyGetTask(void *pvParameters)
 
 	APIGET_TASK_END_FLAG = 0;
 
-	osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+	// osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+	xSemaphoreGive(xMutex2);
 
 	if (lRetVal == SUCCESS)
 	{
@@ -1563,7 +1133,7 @@ void ApikeyGetTask(void *pvParameters)
 		xTaskCreate(st_Green_Red_LedFlashed_Task, "st_Green_Red_LedFlashed_Task", 256, NULL, 7, NULL); //Create Red Led Flash task
 	}
 
-	osi_TaskDelete(&api_TaskHandle); //delete API GET TASK
+	vTaskDelete(NULL);
 }
 
 /*******************************************************************************
@@ -1613,9 +1183,8 @@ void UpdateTimeTask(void *pvParameters)
 
 		Wlan_Disconnect_AP(); //wlan disconnect form the ap
 
-		sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
-
-		MAP_UtilsDelay(80000); //delay about 6ms
+		// sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
+		// MAP_UtilsDelay(80000); //delay about 6ms
 	}
 
 	update_time = 0;
@@ -1658,7 +1227,7 @@ void UpdateTimeTask(void *pvParameters)
 *******************************************************************************/
 void Usb_Set_Mode(void *pvParameters)
 {
-	OsiTaskHandle WUS_TaskHandle = NULL;
+	// OsiTaskHandle WUS_TaskHandle = NULL;
 
 	// osi_SyncObjWait(&xBinary16, OSI_WAIT_FOREVER); //Wait Task Operation Message
 	ulTaskNotifyTake(pdTRUE, -1);
@@ -1667,359 +1236,7 @@ void Usb_Set_Mode(void *pvParameters)
 
 	MAP_UtilsDelay(80000); //delay about 6ms
 
-	osi_TaskDelete(&WUS_TaskHandle); //delete The TASK
-}
-
-/*******************************************************************************
-//start wlan AP mode
-*******************************************************************************/
-void WlanAPMode(void *pvParameters)
-{
-	char Readflag[16];
-	int lRetVal = -1;
-	int iAddrSize;
-	int iSockID;
-	int iStatus;
-	int iNewSockID;
-	long lNonBlocking = 1;
-	//  int iTestBufLen;
-
-	SlSockAddrIn_t sAddr;
-	SlSockAddrIn_t sLocalAddr;
-	unsigned char outLen;
-	SlNetAppDhcpServerBasicOpt_t dhcpParams;
-	OsiTaskHandle ap_TaskHandle = NULL;
-
-	ap_mode_status = 1;
-
-	AP_MODE_END_FLAG = 1;
-
-	// osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
-	vTaskNotifyGiveFromISR(xBinary13, NULL);
-
-	Web_read_product();
-
-	Web_read_errcode();
-
-	memset(&web_post_wifi_msg, 0, sizeof(web_post_wifi_msg));
-
-	xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
-
-	osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
-
-	//  InitializeAppVariables();  //init status
-
-	// ConfigureSimpleLinkToDefaultState(); //configure the device to default state
-
-	lRetVal = sl_Start(NULL, NULL, NULL); //start the simplelink unit
-	if (lRetVal != ROLE_AP)
-	{
-		osi_Sleep(5); //delay 5ms
-
-		// ConfigureMode(ROLE_AP); //Configure the networking mode and ssid name(for AP mode)
-	}
-
-	dhcpParams.lease_time = 900;							  //lease time 15min
-	dhcpParams.ipv4_addr_start = SL_IPV4_VAL(192, 168, 1, 2); //configure dhcp addresses to: 192.168.1.2 - 192.168.1.254
-	dhcpParams.ipv4_addr_last = SL_IPV4_VAL(192, 168, 1, 254);
-	outLen = sizeof(SlNetAppDhcpServerBasicOpt_t);
-
-	sl_NetAppStop(SL_NET_APP_DHCP_SERVER_ID);
-
-	sl_NetAppSet(SL_NET_APP_DHCP_SERVER_ID, NETAPP_SET_DHCP_SRV_BASIC_OPT, outLen, (unsigned char *)&dhcpParams); //Set AP DHCP params
-
-	sl_NetAppStart(SL_NET_APP_DHCP_SERVER_ID);
-
-	while (!IS_IP_ACQUIRED(g_ulStatus)) //looping till ip is acquired
-	{
-		osi_Sleep(5); //delay 5ms
-	}
-
-	//Stop Internal HTTP Server
-	lRetVal = sl_NetAppStop(SL_NET_APP_HTTP_SERVER_ID);
-	if (lRetVal < 0)
-	{
-#ifdef DEBUG
-		osi_UartPrint("f stop http server failed!\r\n");
-#endif
-	}
-
-	lRetVal = sl_NetAppStart(SL_NET_APP_HTTP_SERVER_ID);
-	if (lRetVal < 0)
-	{
-#ifdef DEBUG
-		osi_UartPrint("f start http server failed!\r\n");
-#endif
-	}
-
-	for (;;)
-	{
-#ifdef DEBUG
-		osi_UartPrint("Connect a client to Device\r\n");
-#endif
-
-		while (!IS_IP_LEASED(g_ulStatus)) //wating for the client to connect
-		{
-			osi_Sleep(5); //delay 5ms
-
-			sys_run_time = 0; //clear system time out
-		}
-
-#ifdef DEBUG
-		osi_UartPrint("Client is connected to Device\r\n");
-#endif
-
-		iSockID = sl_Socket(SL_AF_INET, SL_SOCK_STREAM, 0); //creating a TCP socket
-		if (iSockID < 0)
-		{
-#ifdef DEBUG
-			osi_UartPrint("creating a TCP socket failed!\r\n");
-#endif
-
-			sl_Close(iSockID); //error
-
-			continue;
-		}
-
-		//filling the TCP server socket address
-		sLocalAddr.sin_family = SL_AF_INET;
-		sLocalAddr.sin_port = sl_Htons(PORT_NUM);
-		sLocalAddr.sin_addr.s_addr = 0;
-		iAddrSize = sizeof(SlSockAddrIn_t);
-
-		iStatus = sl_Bind(iSockID, (SlSockAddr_t *)&sLocalAddr, iAddrSize); //binding the TCP socket to the TCP server address
-		if (iStatus < 0)
-		{
-			sl_Close(iSockID); //error
-
-			continue;
-		}
-
-		iStatus = sl_Listen(iSockID, 0); //putting the socket for listening to the incoming TCP connection
-		if (iStatus < 0)
-		{
-			sl_Close(iSockID);
-
-			continue;
-		}
-
-		iStatus = sl_SetSockOpt(iSockID, SL_SOL_SOCKET, SL_SO_NONBLOCKING, &lNonBlocking, sizeof(lNonBlocking)); //setting socket option to make the socket as non blocking
-		if (iStatus < 0)
-		{
-			sl_Close(iSockID);
-
-			continue;
-		}
-
-		iNewSockID = SL_EAGAIN;
-
-		for (;;)
-		{
-			while (iNewSockID < 0) //waiting for an incoming TCP connection
-			{
-				iNewSockID = sl_Accept(iSockID, (struct SlSockAddr_t *)&sAddr, (SlSocklen_t *)&iAddrSize); //accepts a connection form a TCP client
-				if (iNewSockID == SL_EAGAIN)
-				{
-					osi_Sleep(1); //delay 1ms
-				}
-				else if (iNewSockID < 0) //error
-				{
-					sl_Close(iNewSockID);
-					sl_Close(iSockID);
-					break;
-				}
-				if (AP_MODE_END)
-				{
-					break;
-				}
-
-				sys_run_time = 0; //clear system time out
-			}
-
-			if ((iNewSockID < 0) || (AP_MODE_END)) //error
-			{
-				break;
-			}
-			iStatus = sl_Recv(iNewSockID, UartGet, /* iTestBufLen*/ sizeof(UartGet), 0);
-			if (iStatus == SL_EAGAIN)
-			{
-				osi_Sleep(1); //delay 1ms
-			}
-			else if (iStatus <= 0) //error
-			{
-				sl_Close(iNewSockID);
-				iNewSockID = SL_EAGAIN;
-				//sl_Close(iSockID);
-
-				//break;
-			}
-			else
-			{
-				UartGet[iStatus] = '\0';
-
-#ifdef DEBUG
-				osi_UartPrint_Mul("TCP_Recivebuffer:", UartGet);
-#endif
-
-				lRetVal = ParseTcpUartCmd(UartGet);
-				if (lRetVal < 0)
-				{
-					sl_Send(iNewSockID, FAILURED_CODE, strlen(FAILURED_CODE), 0);
-				}
-				else if (lRetVal == 0)
-				{
-					sl_Send(iNewSockID, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-				}
-				else if (lRetVal == 1) //Command:SetupWifi
-				{
-					sl_Send(iNewSockID, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-					break;
-				}
-				else if (lRetVal == 2) //{command: ReadProduct}
-				{
-					memset(UartGet, 0, sizeof(UartGet));
-					Read_Product_Set(UartGet, sizeof(UartGet));
-					sl_Send(iNewSockID, UartGet, strlen(UartGet), 0);
-				}
-				else if (lRetVal == 3) //Command:ReadWifi
-				{
-					memset(UartGet, 0, sizeof(UartGet));
-					Read_Wifi_Set(UartGet, sizeof(UartGet));
-					sl_Send(iNewSockID, UartGet, strlen(UartGet), 0);
-				}
-				else if (lRetVal == 4) //Command:GetLastError
-				{
-					memset(UartGet, 0, sizeof(UartGet));
-					Read_System_ERROR_Code(UartGet, sizeof(UartGet));
-					sl_Send(iNewSockID, UartGet, strlen(UartGet), 0);
-				}
-				else if (lRetVal == 5) //command:BreakOut
-				{
-					break;
-				}
-				else if (lRetVal == 6) //Command:ReadMetaData
-				{
-					memset(UartGet, 0, sizeof(UartGet));
-					Cmd_Read_MetaData(UartGet, sizeof(UartGet));
-					sl_Send(iNewSockID, UartGet, strlen(UartGet), 0);
-				}
-				else if (lRetVal == 9) //Command:ReadData
-				{
-					char data_len_buf[25];
-					unsigned long read_addr;
-					unsigned long save_data_num;
-
-					osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
-
-					if (POST_NUM)
-					{
-						save_data_num = POST_NUM;
-						read_addr = POST_ADDR;
-
-						snprintf(data_len_buf, sizeof(data_len_buf), "{\"save_data_sum\":%d}", save_data_num);
-						sl_Send(iNewSockID, data_len_buf, strlen(data_len_buf), 0);
-						sl_Send(iNewSockID, "\r\n", strlen("\r\n"), 0);
-
-						while (save_data_num--)
-						{
-							memset(UartGet, 0, sizeof(UartGet));
-							osi_w25q_ReadData(read_addr, UartGet, 0xff, NULL);
-							sl_Send(iNewSockID, UartGet, strlen(UartGet), 0);
-							sl_Send(iNewSockID, "\r\n", strlen("\r\n"), 0);
-							read_addr += 1 + strlen(UartGet); //end whit '!'
-							sys_run_time = 0;				  //clear system time out
-						}
-					}
-				}
-				else if (lRetVal == 10) //Command:ClearData
-				{
-					sl_Send(iNewSockID, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-					osi_TaskDelete(&GR_LED_TaskHandle);																	   //delete Green and Red Led Flash Task
-					SET_GREEN_LED_OFF();																				   //Set Green Led Off
-					osi_Save_Data_Reset();																				   //Nor Flash Memory Chip Reset
-					xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
-				}
-			}
-			sys_run_time = 0; //clear system time out
-		}
-
-		sys_run_time = 0; //clear system time out
-
-		if ((lRetVal == 1) || (lRetVal == 5) || (AP_MODE_END))
-		{
-			break;
-		}
-	}
-
-	osi_Sleep(1500); //delay 1.5s
-
-	if (sl_NetAppStop(SL_NET_APP_HTTP_SERVER_ID) < 0)
-	{
-#ifdef DEBUG
-		osi_UartPrint("s stop http server failed!\r\n");
-#endif
-	}
-
-	sl_Close(iNewSockID); //close the connected socket
-
-	sl_Close(iSockID); //close the listening socket
-
-	sl_WlanSetMode(ROLE_STA); //revert to STA mode
-
-	sl_Stop(SL_STOP_TIMEOUT); //Switch off Network processor
-
-	osi_TaskDelete(&GR_LED_TaskHandle); //delete Green and Red Led Flash Task
-
-	SET_GREEN_LED_OFF(); //Set Green Led Off
-
-	SET_RED_LED_OFF(); //Set Red Led Off
-
-	if ((lRetVal == 1) || (AP_MODE_END))
-	{
-		osi_bell_makeSound(200);
-
-		xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 7, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task
-
-		lRetVal = WiFi_Connect_Test(); //wlan connect test
-
-		osi_TaskDelete(&GR_LED_FAST_TaskHandle); //delete Green and Red Led Fast Flash Task
-
-		SET_GREEN_LED_OFF(); //Set Green Led Off
-
-		SET_RED_LED_OFF(); //Set Red Led Off
-
-		osi_bell_makeSound(200);
-
-		if (lRetVal < 0)
-		{
-			Red_Led_Flashed(3, 3);
-		}
-		else
-		{
-			Green_Led_Flashed(3, 3);
-		}
-	}
-
-	osi_at24c08_ReadData(DATAURI_FLAG_ADDR, (uint8_t *)Readflag, sizeof(Readflag), 1); //read datapost addr
-
-	if (!strcmp((char const *)Readflag, DATA_URI)) //check datapost addr
-	{
-		xTaskCreate(UpdateTimeTask, "UpdateTimeTask", 1024, NULL, 7, NULL); //Create UpdataTime Task
-	}
-	else
-	{
-		xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
-	}
-
-	osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
-
-	ap_mode_status = 0;
-
-	AP_MODE_END_FLAG = 0;
-
-	MAP_UtilsDelay(80000); //delay about 6ms
-
-	osi_TaskDelete(&ap_TaskHandle); //delete AP mode task
+	vTaskDelete(NULL);
 }
 
 /*******************************************************************************
@@ -2027,10 +1244,9 @@ void WlanAPMode(void *pvParameters)
 *******************************************************************************/
 void F_ResetTask(void *pvParameters)
 {
-	char mac_addr[6] = {0};
-	uint8_t buf_len = sizeof(mac_addr);
+	// char mac_addr[6] = {0};
+	// uint8_t buf_len = sizeof(mac_addr);
 	uint8_t rest_buf[64];
-	OsiTaskHandle F_RESET_TaskHandle = NULL;
 
 	f_reset_status = 1;
 
@@ -2042,20 +1258,22 @@ void F_ResetTask(void *pvParameters)
 
 	osi_Error_Code_Init(); //Error Code Init Save in At24c08 whit locked
 
-	osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
-	APIGET_TASK_END_FLAG = 1;
-	// osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
-	vTaskNotifyGiveFromISR(xBinary13, NULL);
-	sl_Start(0, 0, 0); //start the simple link
-	sl_NetCfgGet(SL_MAC_ADDRESS_GET, NULL, &buf_len, (unsigned char *)mac_addr);
-	sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
-	MAP_UtilsDelay(80000);	  //delay about 6ms
-	APIGET_TASK_END_FLAG = 0;
-	osi_SyncObjSignal(&xMutex2);											  //SimpleLink Semaphore Give
-	osi_at24c08_WriteData(MAC_ADDR, (uint8_t *)mac_addr, SL_MAC_ADDR_LEN, 0); //save type
+	//重置网络以及MAC esp32 应该不需要
+	// osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+	// APIGET_TASK_END_FLAG = 1;
+	// // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
+	// vTaskNotifyGiveFromISR(xBinary13, NULL);
+	// sl_Start(0, 0, 0); //start the simple link
+	// sl_NetCfgGet(SL_MAC_ADDRESS_GET, NULL, &buf_len, (unsigned char *)mac_addr);
+	// sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
+	// MAP_UtilsDelay(80000);	  //delay about 6ms
+	// APIGET_TASK_END_FLAG = 0;
+	// osi_SyncObjSignal(&xMutex2);
+	//SimpleLink Semaphore Give
+	// esp_read_mac(mac_addr, 0);
+	// osi_at24c08_WriteData(MAC_ADDR, (uint8_t *)mac_addr, SL_MAC_ADDR_LEN, 0); //save type
 
 	SET_GREEN_LED_OFF(); //LED OFF
-
 	acce_sensor_reset(); //check acce sensor
 
 	mem_set(rest_buf, 0, sizeof(rest_buf));
@@ -2064,12 +1282,10 @@ void F_ResetTask(void *pvParameters)
 	osi_at24c08_write_byte(SSID_LEN_ADDR, 0);
 	osi_at24c08_WriteData(SSID_ADDR, rest_buf, 32, 0); //deleted ssid
 	osi_at24c08_write_byte(PASSWORD_LEN_ADDR, 0);
-	osi_at24c08_WriteData(PASSWORD_ADDR, rest_buf, 64, 0); //deleted password
-	osi_at24c08_WriteData(SECTYPE_ADDR, rest_buf, 7, 1);   //deleted sec type
-
-	osi_at24c08_WriteData(CHANNEL_ID_ADDR, rest_buf, 7, 1); //deleted channel id
-	osi_at24c08_WriteData(USER_ID_ADDR, rest_buf, 43, 1);	//deleted user id
-
+	osi_at24c08_WriteData(PASSWORD_ADDR, rest_buf, 64, 0);	  //deleted password
+	osi_at24c08_WriteData(SECTYPE_ADDR, rest_buf, 7, 1);	  //deleted sec type
+	osi_at24c08_WriteData(CHANNEL_ID_ADDR, rest_buf, 7, 1);	  //deleted channel id
+	osi_at24c08_WriteData(USER_ID_ADDR, rest_buf, 43, 1);	  //deleted user id
 	osi_at24c08_WriteData(DATAURI_FLAG_ADDR, rest_buf, 7, 1); //deleted datauri
 
 	//Rest Host Name and IP Data
@@ -2096,20 +1312,20 @@ void F_ResetTask(void *pvParameters)
 
 	osi_Save_Data_Reset(); //Nor Flash Memory Chip Reset with SPI Locked
 
-	if (GPIOPinRead(USB_PORT, USB_PIN)) //read usb pin status
+	if (gpio_get_level(USB_PIN)) //read usb pin status
 	{
 		xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, NULL); //Create Wait Uart Set Task task
 	}
 	else
 	{
-		xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
+		// xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
 
 		xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
 	}
 
 	f_reset_status = 0;
 
-	osi_TaskDelete(&F_RESET_TaskHandle); //Delete Factory Reset Task
+	vTaskDelete(NULL); //Delete Factory Reset Task
 }
 
 /*******************************************************************************
@@ -2124,7 +1340,7 @@ void ButtonPush_Int_Task(void *pvParameters)
 		// osi_SyncObjWait(&xBinary1, OSI_WAIT_FOREVER); //Waite Button GPIO Interrupt Message
 		ulTaskNotifyTake(pdTRUE, -1);
 
-		// if (!GPIOPinRead(BUTTON_PORT, BUTTON_PIN))
+		// if (!gpio_get_level(BUTTON_PIN))
 		if (!gpio_get_level(BUTTON_PIN))
 		{
 			Button_Push = 0;
@@ -2224,6 +1440,7 @@ void ButtonPush_Int_Task(void *pvParameters)
 
 /*******************************************************************************
 //Power OFF
+设置关机，非立即关机
 *******************************************************************************/
 static void SET_Power_OFF(void)
 {
@@ -2231,11 +1448,11 @@ static void SET_Power_OFF(void)
 
 	Sensor_Power_OFF(); //Set Sensors In Power Down  Mode
 
-	SetButtonAsWkUp(); // set Button as wakeup source
+	// SetButtonAsWkUp(); // set Button as wakeup source
 
-	lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE); //Setting up HIBERNATE mode for the system
+	// lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE); //Setting up HIBERNATE mode for the system
 
-	MAP_UtilsDelay(2000000); //delay about 150ms
+	// MAP_UtilsDelay(2000000); //delay about 150ms
 }
 
 /*******************************************************************************
@@ -2414,36 +1631,6 @@ void System_Variables_Init(void)
 }
 
 /*******************************************************************************
-//Mandatory Configuration to put the PM into safe state before entering hibernate
-*******************************************************************************/
-static inline void HIBEntrePreamble()
-{
-	HWREG(0x400F70B8) = 1;
-	UtilsDelay(800000 / 5);
-	HWREG(0x400F70B0) = 1;
-	UtilsDelay(800000 / 5);
-
-	HWREG(0x4402E16C) |= 0x2;
-	UtilsDelay(800);
-	HWREG(0x4402F024) &= 0xF7FFFFFF;
-}
-
-/*******************************************************************************
-//Reboot the MCU
-*******************************************************************************/
-static void Reboot_MCU(void)
-{
-	HIBEntrePreamble();
-
-	MAP_PRCMOCRRegisterWrite(0, 1);
-
-	MAP_PRCMHibernateWakeupSourceEnable(PRCM_HIB_SLOW_CLK_CTR);
-
-	MAP_PRCMHibernateIntervalSet(330);
-
-	MAP_PRCMHibernateEnter(); //Enter hibernate
-}
-/*******************************************************************************
 //Read System Status                             
 *******************************************************************************/
 static short Read_System_Status(uint8_t *read_flag, uint8_t buf_len)
@@ -2486,11 +1673,12 @@ void WatchDog_Reset_Task(void *pvParameters)
 
 			slp_t_ms = 0;
 
-			rtc_result = SetTimerAsWkUp(sleep_time, 1); //set Timer as a wake up source from low power modes
-			if (rtc_result < 0)
-			{
-				Reboot_MCU(); //Reboot the MCU
-			}
+			//设置休眠唤醒时间，执行即计时，非休眠则进入回调
+			// rtc_result = SetTimerAsWkUp(sleep_time, 1); //set Timer as a wake up source from low power modes
+			// if (rtc_result < 0)
+			// {
+			// 	Reboot_MCU(); //Reboot the MCU
+			// }
 		}
 		// else if (msg_val == MSG_WD_VAL)
 		// {
@@ -2508,14 +1696,21 @@ void WatchDog_Reset_Task(void *pvParameters)
 	}
 }
 
+esp_timer_handle_t http_timer_suspend_p = NULL;
+void timer_app_cb(void *arg);
+esp_timer_handle_t timer_app_handle = NULL; //定时器句柄
+esp_timer_create_args_t timer_app_arg = {
+	.callback = &timer_app_cb,
+	.arg = NULL,
+	.name = "App_Timer"};
+
 /*******************************************************************************
 //TimerA0 Interrupt Handler
 //Reset The Watch Dog
 *******************************************************************************/
-void TIMERA0IntHandler(void)
+void timer_app_cb(*arg)
 {
-	Timer_IF_InterruptClear(TIMERA0_BASE); //Clear the timer interrupt bit
-
+	// Timer_IF_InterruptClear(TIMERA0_BASE); //Clear the timer interrupt bit
 	sys_run_time += 1;
 
 	SYS_WD_SEC += 1;
@@ -2526,7 +1721,8 @@ void TIMERA0IntHandler(void)
 
 		uint8_t msg_wd_val = MSG_WD_VAL;
 
-		osi_MsgQWrite(&xQueue3, &msg_wd_val, OSI_NO_WAIT); //send to WatchDog and SleepTimer message
+		// osi_MsgQWrite(&xQueue3, &msg_wd_val, OSI_NO_WAIT); //send to WatchDog and SleepTimer message
+		xQueueSendFromISR(xQueue3, &msg_wd_val, NULL);
 	}
 
 	if (sleep_time > 0)
@@ -2692,7 +1888,7 @@ void app_main(void)
 		else //"SYSTEM OFF"
 		{
 			push_time = 0;
-			while (!GPIOPinRead(BUTTON_PORT, BUTTON_PIN)) //Wait Button Up
+			while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
 			{
 				if (push_time++ == 20) //About 3s,POWER ON
 				{
@@ -2703,7 +1899,7 @@ void app_main(void)
 				if (push_time == 50) //About 7.5s,Creat AP Mode Task
 				{
 					bell_makeSound(200);
-					while (!GPIOPinRead(BUTTON_PORT, BUTTON_PIN)) //Wait Button Up
+					while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
 					{
 						Green_Red_Led_Flashed(1, 6);
 						push_time += 12;
@@ -2718,15 +1914,15 @@ void app_main(void)
 				{
 					SET_GREEN_LED_OFF();
 					bell_makeSound(200);
-					while (!GPIOPinRead(BUTTON_PORT, BUTTON_PIN)) //Wait Button Up
+					while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
 					{
-						WatchdogAck(); //Acknowledge the watchdog
+						// WatchdogAck(); //Acknowledge the watchdog
 						Red_Led_Flashed(1, 3);
 					}
 					break;
 				}
 				MAP_UtilsDelay(2000000); //Delay About 150ms
-				WatchdogAck();			 //Acknowledge the watchdog
+										 // WatchdogAck();			 //Acknowledge the watchdog
 			}
 
 			if (push_time >= 20) //Push Time>=3s or USB connected Power ON
@@ -2752,7 +1948,7 @@ void app_main(void)
 				}
 				else if (push_time >= 50) //15s<=Push Time>=5s
 				{
-					xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
+					// xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
 					xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
 					goto end;
 				}
@@ -2778,14 +1974,14 @@ void app_main(void)
 							xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
 							goto end;
 						}
-						else if (GPIOPinRead(USB_PORT, USB_PIN)) //read usb pin status
+						else if (gpio_get_level(USB_PIN)) //read usb pin status
 						{
 							xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, NULL); //Create Wait Uart Set Task task
 							goto end;
 						}
 						else //check ssid addr
 						{
-							xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
+							// xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
 							xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
 							goto end;
 						}
@@ -2813,12 +2009,18 @@ void app_main(void)
 
 end:
 
-	Timer_IF_Init(PRCM_TIMERA0, TIMERA0_BASE, TIMER_CFG_PERIODIC, TIMER_A, 0);
-	Timer_IF_IntSetup(TIMERA0_BASE, TIMER_A, TIMERA0IntHandler);
-	Timer_IF_InterruptClear(TIMERA0_BASE);		//Clear the timer interrupt bit
-	Timer_IF_Start(TIMERA0_BASE, TIMER_A, 100); //Start TIMERA0 values in nSec
+	// Timer_IF_Init(PRCM_TIMERA0, TIMERA0_BASE, TIMER_CFG_PERIODIC, TIMER_A, 0);
+	// Timer_IF_IntSetup(TIMERA0_BASE, TIMER_A, TIMERA0IntHandler);
+	// Timer_IF_InterruptClear(TIMERA0_BASE);		//Clear the timer interrupt bit
+	// Timer_IF_Start(TIMERA0_BASE, TIMER_A, 100); //Start TIMERA0 values in nSec
+	// osi_start(); // Start the task scheduler
 
-	osi_start(); // Start the task scheduler
+	esp_err_t err = esp_timer_create(&timer_app_arg, &timer_app_handle);
+	err = esp_timer_start_periodic(timer_app_handle, 10000); //创建定时器，单位us，定时10ms
+	if (err != ESP_OK)
+	{
+		ESP_LOGI(TAG, "timer heart create err code:%d\n", err);
+	}
 	for (;;)
 		; //never go here
 }
