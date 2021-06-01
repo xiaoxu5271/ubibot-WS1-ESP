@@ -45,7 +45,19 @@
                 "app_config.h": "c",
                 "jsonparse.h": "c",
                 "uarttask.h": "c",
-                "complex": "c"
+                "complex": "c",
+                "stdio.h": "c",
+                "powermeasuretask.h": "c",
+                "stdlib.h": "c",
+                "at24c08.h": "c",
+                "time.h": "c",
+                "magtask.h": "c",
+                "adxl345.h": "c",
+                "nvs_flash.h": "c",
+                "queue.h": "c",
+                "w25q128.h": "c",
+                "semphr.h": "c",
+                "pcf8563.h": "c"
         },
         "idf.flashType": "UART",
 }

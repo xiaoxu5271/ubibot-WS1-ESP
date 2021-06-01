@@ -11,25 +11,17 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include "hw_types.h"
-#include "hw_memmap.h"
-#include "gpio.h"
 
-#define MAG_PORT        GPIOA1_BASE
-#define MAG_PIN         GPIO_PIN_3
+#define MAG_PORT
+#define MAG_PIN
 
 /*******************************************************************************
  FUNCTION PROTOTYPES
 *******************************************************************************/
-extern uint8_t MagSensor_Status(void);  //Magnetic Sensor Status
+extern uint8_t MagSensor_Status(void); //Magnetic Sensor Status
 
 extern void MagneticSensorTask(void *pvParameters);
-
 
 /*******************************************************************************
                                       END         
 *******************************************************************************/
-
-
-
-

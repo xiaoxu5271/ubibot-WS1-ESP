@@ -13,14 +13,14 @@ void Net_Switch(void);
 void Scan_Wifi(void);
 void start_softap(void);
 bool Check_Wifi(uint8_t *ssid, int8_t *rssi);
-int Tcp_Send(int sock, char *Send_Buff);
+// int Tcp_Send(int sock, char *Send_Buff);
 
 void osi_Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf); //Scan WIFI LIST with locked//
 short WiFi_Connect_Test(void);                                             //WiFi connect test
 short osi_WiFi_Connect_Test(void);                                         //WiFi connect test with locked
 void Wlan_Disconnect_AP(void);                                             //wlan disconnect form the ap//
 int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf);      //Scan WIFI LIST//
-short WlanConnect(void);                                                   //Wlan Connect To The Accesspoint//
+int WlanConnect(void);                                                     //Wlan Connect To The Accesspoint//
 
 extern uint8_t wifi_connect_sta; //wifi连接状态
 // extern uint8_t wifi_work_sta;    //wifi开启状态

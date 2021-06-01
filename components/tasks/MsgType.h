@@ -11,7 +11,8 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include "stdint.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 //#define DEBUG
 //#define DEBUG_SAVE      //memory save debug
@@ -104,6 +105,8 @@
 
 #define FIRMWARENUM "ws1_v3.0.4"
 #define FIRMWAREVIEW "&firmware=ws1_v3.0.4"
+
+#define MAP_UtilsDelay(num) ets_delay_us((uint32_t)(3 / 40 * num))
 
 typedef struct
 {

@@ -11,17 +11,20 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include <stdlib.h>
-#include "osi.h"
-#include "rom_map.h"
-#include "utils.h"
+#include <stdio.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "driver/gpio.h"
+
 #include "MsgType.h"
 #include "opt3001.h"
-#include "ht1621.h"
+// #include "ht1621.h"
 #include "PeripheralDriver.h"
 
-extern OsiSyncObj_t xBinary3; //For Light Sensor Task
-extern OsiMsgQ_t xQueue0;     //Used for cjson and memory save
+extern TaskHandle_t xBinary3; //For Light Sensor Task
+extern QueueHandle_t xQueue0; //Used for cjson and memory save
 
 #ifdef USE_LCD
 extern OsiSyncObj_t xMutex6; //Used for Ht1621 LCD Driver
@@ -40,7 +43,7 @@ void LightSensorTask(void *pvParameters)
 
   for (;;)
   {
-    // osi_SyncObjWait(&xBinary3,OSI_WAIT_FOREVER);  //Wait Timer Interrupt Message
+    // osi_SyncObjWait(&xBinary3,-1);  //Wait Timer Interrupt Message
     ulTaskNotifyTake(pdTRUE, -1);
 
     osi_OPT3001_value(&lightvalue); //Read Light Value
@@ -48,14 +51,14 @@ void LightSensorTask(void *pvParameters)
     if (lightvalue != ERROR_CODE)
     {
 #ifdef USE_LCD
-      osi_SyncObjWait(&xMutex6, OSI_WAIT_FOREVER); //LCD Semaphore Take
+      xSemaphoreTake(xMutex6, -1); //LCD Semaphore Take
       Ht1621_Display_Light_Val(lightvalue, 0, 0, 0, power_flag);
-      osi_SyncObjSignal(&xMutex6); //LCD Semaphore Give
+      xSemaphoreGive(xMutex6); //LCD Semaphore Give
 #endif
 
-      lMsg.sensornum = LIGHT_NUM;                  //Message Number
-      lMsg.sensorval = f3_a * lightvalue + f3_b;   //Message Value
-      osi_MsgQWrite(&xQueue0, &lMsg, OSI_NO_WAIT); //Send Light Data Message
+      lMsg.sensornum = LIGHT_NUM;                //Message Number
+      lMsg.sensorval = f3_a * lightvalue + f3_b; //Message Value
+      xQueueSend(xQueue0, &lMsg, 0);             //Send Light Data Message
     }
   }
 }

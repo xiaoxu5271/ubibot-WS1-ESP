@@ -34,17 +34,8 @@ extern volatile uint8_t thres_acc_min;
 *******************************************************************************/
 void adx345_writeReg(uint8_t addr, uint8_t value)
 {
-#ifdef ADXL345_SPI
-  SET_SPI1_CS_OFF();         //enable the adx345 spi cs
-  MAP_SPIEnable(GSPI_BASE);  //enable the spi channel
-  SPI_SendReciveByte(addr);  //send register address
-  SPI_SendReciveByte(value); //send write value
-  MAP_SPIDisable(GSPI_BASE); //disable the channel
-  SET_SPI1_CS_ON();          //disable the adx345 spi cs
-#endif
-#ifdef ADXL345_IIC
+
   MulTry_IIC_WR_Reg(ADXL345_IIC_ADDR, addr, value);
-#endif
 }
 
 /*******************************************************************************
@@ -54,17 +45,7 @@ uint8_t adx345_readReg(uint8_t addr)
 {
   uint8_t RegValue = 0;
 
-#ifdef ADXL345_SPI
-  SET_SPI1_CS_OFF();                   //enable the adx345 spi cs
-  MAP_SPIEnable(GSPI_BASE);            //enable the spi channel
-  SPI_SendReciveByte(addr | 0x80);     //send the register address and read single command
-  RegValue = SPI_SendReciveByte(0x00); //clk signal get the value
-  MAP_SPIDisable(GSPI_BASE);           //disable the channel
-  SET_SPI1_CS_ON();                    //disable the adx345 spi cs
-#endif
-#ifdef ADXL345_IIC
   MulTry_IIC_RD_Reg(ADXL345_IIC_ADDR, addr, &RegValue);
-#endif
 
   return RegValue;
 }
@@ -99,21 +80,7 @@ void ADXL345_RD_xyz(short *x_val, short *y_val, short *z_val)
 {
   uint8_t read_val[6];
 
-#ifdef ADXL345_SPI
-  SET_SPI1_CS_OFF();                 //enable the adx345 spi cs
-  MAP_SPIEnable(GSPI_BASE);          //enable the spi channel
-  SPI_SendReciveByte(DATAX0 | 0xc0); //send the address and read multi data command
-  uint8_t i;
-  for (i = 0; i < 6; i++)
-  {
-    read_val[i] = SPI_SendReciveByte(0x00); //read data
-  }
-  MAP_SPIDisable(GSPI_BASE); //disable the channel
-  SET_SPI1_CS_ON();          //disable the adx345 spi cs
-#endif
-#ifdef ADXL345_IIC
   MulTry_I2C_RD_mulReg(ADXL345_IIC_ADDR, DATAX0, read_val, 6);
-#endif
 
   *x_val = (short)(((uint16_t)read_val[1] << 8) + read_val[0]); //x axis data
   *y_val = (short)(((uint16_t)read_val[3] << 8) + read_val[2]); //y axis data

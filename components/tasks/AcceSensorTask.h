@@ -11,7 +11,7 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include "stdint.h"
+// #include "freertos/FreeRTOS.h"
 
 // #define ACCE_PORT       GPIOA2_BASE
 // #define ACCE_PIN        GPIO_PIN_1

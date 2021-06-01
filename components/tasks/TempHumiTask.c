@@ -11,13 +11,14 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include <stdlib.h>
-#include "osi.h"
-#include "rom_map.h"
-#include "utils.h"
+#include <stdio.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 #include "MsgType.h"
 #include "sht30dis.h"
-#include "ht1621.h"
+// #include "ht1621.h"
 #include "PeripheralDriver.h"
 
 extern OsiMsgQ_t xQueue0;     //Used for cjson and memory save
@@ -40,7 +41,7 @@ void TempHumiSensorTask(void *pvParameters)
 
   for (;;)
   {
-    // osi_SyncObjWait(&xBinary2,OSI_WAIT_FOREVER);  //Wait Sensor Task Operate Message
+    // osi_SyncObjWait(&xBinary2,-1);  //Wait Sensor Task Operate Message
     ulTaskNotifyTake(pdTRUE, -1);
 
     osi_sht30_SingleShotMeasure(&tempvalue, &humivalue); //read temperature humility data
@@ -48,27 +49,27 @@ void TempHumiSensorTask(void *pvParameters)
     if (tempvalue != ERROR_CODE)
     {
 #ifdef USE_LCD
-      osi_SyncObjWait(&xMutex6, OSI_WAIT_FOREVER); //LCD Semaphore Take
-      Ht1621_Display_Temp_Val(tempvalue, 0);       //Display Temprature value
-      osi_SyncObjSignal(&xMutex6);                 //LCD Semaphore Give
+      xSemaphoreTake(xMutex6, -1);           //LCD Semaphore Take
+      Ht1621_Display_Temp_Val(tempvalue, 0); //Display Temprature value
+      xSemaphoreGive(xMutex6);               //LCD Semaphore Give
 #endif
 
-      thMsg.sensornum = TEMP_NUM;                   //Message Number
-      thMsg.sensorval = f1_a * tempvalue + f1_b;    //Message Value
-      osi_MsgQWrite(&xQueue0, &thMsg, OSI_NO_WAIT); //Send Temperature Data Message
+      thMsg.sensornum = TEMP_NUM;                //Message Number
+      thMsg.sensorval = f1_a * tempvalue + f1_b; //Message Value
+      xQueueSend(xQueue0, &thMsg, 0);            //Send Temperature Data Message
     }
 
     if (humivalue != ERROR_CODE)
     {
 #ifdef USE_LCD
-      osi_SyncObjWait(&xMutex6, OSI_WAIT_FOREVER); //LCD Semaphore Take
+      xSemaphoreTake(xMutex6, -1);                 //LCD Semaphore Take
       Ht1621_Display_Humi_Val((uint8_t)humivalue); //Display Humility value
-      osi_SyncObjSignal(&xMutex6);                 //LCD Semaphore Give
+      xSemaphoreGive(xMutex6);                     //LCD Semaphore Give
 #endif
 
-      thMsg.sensornum = HUMI_NUM;                   //Message Number
-      thMsg.sensorval = f2_a * humivalue + f2_b;    //Message Value
-      osi_MsgQWrite(&xQueue0, &thMsg, OSI_NO_WAIT); //Send Humility Data Message
+      thMsg.sensornum = HUMI_NUM;                //Message Number
+      thMsg.sensorval = f2_a * humivalue + f2_b; //Message Value
+      xQueueSend(xQueue0, &thMsg, 0);            //Send Humility Data Message
     }
   }
 }

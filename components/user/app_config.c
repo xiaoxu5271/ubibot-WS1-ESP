@@ -84,7 +84,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 
         // Net_sta_flag = false;
         xEventGroupClearBits(Net_sta_group, CONNECTED_BIT);
-        Start_Active();
+        // Start_Active();
 
         wifi_event_sta_disconnected_t *event = (wifi_event_sta_disconnected_t *)event_data;
         if (event->reason >= 200)
@@ -101,7 +101,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     {
         esp_timer_stop(timer_wifi_handle);
         xEventGroupSetBits(Net_sta_group, CONNECTED_BIT);
-        Start_Active();
+        // Start_Active();
         // ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         // ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
     }
@@ -127,6 +127,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 void init_wifi(void) //
 {
     char temp[6] = {0};
+    char series_number[16] = {0};
     // tcpip_adapter_init();
     // Net_sta_group = xEventGroupCreate();
     ESP_ERROR_CHECK(esp_timer_create(&timer_wifi_arg, &timer_wifi_handle));
@@ -153,7 +154,8 @@ void init_wifi(void) //
 
     // xEventGroupSetBits(Net_sta_group, WIFI_S_BIT);
     start_user_wifi();
-    strncpy(temp, SerialNum, 5);
+    osi_at24c08_ReadData(SERISE_NUM_ADDR, (uint8_t *)series_number, sizeof(series_number), 1);
+    strncpy(temp, series_number, 5);
     snprintf(AP_SSID, 15, "Ubibot-%s", temp);
     ESP_LOGI(TAG, "AP_SSID:%s", AP_SSID);
     //创建TCP监听端口 ，常开
@@ -197,8 +199,8 @@ void start_user_wifi(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     wifi_config_t s_staconf;
     memset(&s_staconf.sta, 0, sizeof(s_staconf));
-    mem_set(SSID_NAME, 0, sizeof(SSID_NAME));
-    mem_set(PASS_WORD, 0, sizeof(PASS_WORD));
+    memset(SSID_NAME, 0, sizeof(SSID_NAME));
+    memset(PASS_WORD, 0, sizeof(PASS_WORD));
 
     read_len = osi_at24c08_read_byte(SSID_LEN_ADDR);
     if (read_len > sizeof(SSID_NAME))
@@ -230,7 +232,7 @@ void Net_Switch(void)
     xEventGroupClearBits(Net_sta_group, CONNECTED_BIT);
 
     start_user_wifi();
-    Start_W_Mqtt();
+    // Start_W_Mqtt();
 }
 
 #define DEFAULT_SCAN_LIST_SIZE 5
@@ -362,7 +364,6 @@ void start_softap(void)
 
 int Tcp_Send(int sock, const char *Send_Buff, uint16_t Send_Buff_len, uint8_t flag)
 {
-    uint16_t Send_Buff_len;
     int to_write = Send_Buff_len;
     int written = 0;
     // ESP_LOGI(TAG, "Send_Buff:%s,Len:%d,sock:%d", Send_Buff, Send_Buff_len, sock);
@@ -403,7 +404,7 @@ static void do_retransmit(const int sock)
             rx_buffer[len] = 0; // Null-terminate whatever is received and treat it like a string
             ESP_LOGI(TAG, "Received %d,strlen:%d, bytes: %s,sock:%d", len, strlen(rx_buffer), rx_buffer, sock);
             // send(sock, rx_buffer, len, 0);
-            ret = ParseTcpUartCmd(rx_buffer, 1, sock);
+            ret = ParseTcpUartCmd(rx_buffer);
             // ESP_LOGI(TAG, "TCP ret:%d", ret);
         }
     } while (len > 0);
@@ -510,19 +511,16 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
     int lRetVal = -1;
     int Wifi_List_Val = -127;
     char scan_buf[96];
-    unsigned short ucIndex;
-    unsigned char ucpolicyOpt;
     char utctime[21] = {0};
     char bssid_buf[5][18] = {0};
     signed char bssid_rssi_val[5] = {0};
 
     uint16_t number = DEFAULT_SCAN_LIST_SIZE;
     wifi_ap_record_t ap_info[DEFAULT_SCAN_LIST_SIZE];
-    uint16_t ap_count = 0;
     memset(ap_info, 0, sizeof(ap_info));
     scan_flag = true;
 
-    mem_set(SSID_NAME, 0, sizeof(SSID_NAME));
+    memset(SSID_NAME, 0, sizeof(SSID_NAME));
 
     read_len = osi_at24c08_read_byte(SSID_LEN_ADDR);
 
@@ -539,7 +537,7 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
     {
         ESP_LOGE(TAG, "esp_wifi_scan_start FAIL");
         scan_flag = false;
-        return;
+        return ERROR_CODE;
     }
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number, ap_info));
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&lRetVal));
@@ -550,12 +548,12 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
     // }
     if (uart_printf)
     {
-        // osi_SyncObjWait(&xMutex4, OSI_WAIT_FOREVER); //UART Semaphore Take
+        //  xSemaphoreTake(xMutex4, -1); //UART Semaphore Take
         xSemaphoreTake(xMutex4, -1);
 
-        UART_PRINT("{\"WiFi_List_Sum\":%d}\r\n", lRetVal);
+        printf("{\"WiFi_List_Sum\":%d}\r\n", lRetVal);
 
-        // osi_SyncObjSignal(&xMutex4); //UART Semaphore Give
+        //  xSemaphoreGive(xMutex4); //UART Semaphore Give
         xSemaphoreGive(xMutex4);
     }
 
@@ -571,12 +569,12 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
 
                 Web_Wifi_Set(scan_buf, sizeof(scan_buf), (char *)ap_info[i].ssid, ap_info[i].rssi, ap_info[i].authmode, (char *)ap_info[i].bssid, 1);
 
-                // osi_SyncObjWait(&xMutex4, OSI_WAIT_FOREVER); //UART Semaphore Take
+                //  xSemaphoreTake(xMutex4, -1); //UART Semaphore Take
                 xSemaphoreTake(xMutex4, -1);
-                UART_PRINT("%s\r\n", scan_buf);
-                //        UART_PRINT("{\"SSID\":\"%s\",\"rssi\":%d,\"type\":%d}\r\n",ap_info[i].ssid,ap_info[i].rssi,ap_info[i].sec_type);
+                printf("%s\r\n", scan_buf);
+                //        printf("{\"SSID\":\"%s\",\"rssi\":%d,\"type\":%d}\r\n",ap_info[i].ssid,ap_info[i].rssi,ap_info[i].sec_type);
                 xSemaphoreGive(xMutex4);
-                // osi_SyncObjSignal(&xMutex4); //UART Semaphore Give
+                //  xSemaphoreGive(xMutex4); //UART Semaphore Give
             }
 
             if (i < 5)
@@ -588,19 +586,19 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
 
             if (!strcmp((char const *)ap_info[i].ssid, (char const *)SSID_NAME))
             {
-                mem_set(SEC_TYPE, 0, sizeof(SEC_TYPE));
+                memset(SEC_TYPE, 0, sizeof(SEC_TYPE));
 
                 if (ap_info[i].authmode == WIFI_AUTH_OPEN)
                 {
-                    mem_copy(SEC_TYPE, "OPEN", strlen("OPEN")); //WiFi sec type
+                    memcpy(SEC_TYPE, "OPEN", strlen("OPEN")); //WiFi sec type
                 }
                 else if (ap_info[i].authmode == WIFI_AUTH_WEP)
                 {
-                    mem_copy(SEC_TYPE, "WEP", strlen("WEP")); //WiFi sec type
+                    memcpy(SEC_TYPE, "WEP", strlen("WEP")); //WiFi sec type
                 }
                 else
                 {
-                    mem_copy(SEC_TYPE, "WPA", strlen("WPA")); //WiFi sec type
+                    memcpy(SEC_TYPE, "WPA", strlen("WPA")); //WiFi sec type
                 }
 
                 if (Wifi_List_Val < ap_info[i].rssi)
@@ -612,9 +610,9 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
             {
                 *rssi_val = ap_info[i].rssi;
 
-                mem_set(rssi_ssid, 0, 32);
+                memset(rssi_ssid, 0, 32);
 
-                mem_copy(rssi_ssid, ap_info[i].ssid, strlen((char *)ap_info[i].ssid));
+                memcpy(rssi_ssid, ap_info[i].ssid, strlen((char *)ap_info[i].ssid));
             }
         }
         osi_Read_UTCtime(utctime, sizeof(utctime)); //read time
@@ -672,7 +670,7 @@ int WlanConnect(void)
 
     start_user_wifi();
     //等网络连接
-    if (xEventGroupWaitBits(Net_sta_group, CONNECTED_BIT, false, true, 30000 / portTICK_RATE_MS) & CONNECTED_BIT == CONNECTED_BIT)
+    if ((xEventGroupWaitBits(Net_sta_group, CONNECTED_BIT, false, true, 30000 / portTICK_RATE_MS) & CONNECTED_BIT) == CONNECTED_BIT)
     {
         return SUCCESS;
     }
@@ -687,12 +685,12 @@ int WlanConnect(void)
 *******************************************************************************/
 void osi_Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
 {
-    // osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+    //  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
     xSemaphoreTake(xMutex2, -1);
 
     Scan_Wifi_List(rssi_ssid, rssi_val, uart_printf);
 
-    // osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+    //  xSemaphoreGive(xMutex2); //SimpleLink Semaphore Give
     xSemaphoreGive(xMutex2);
 }
 
@@ -726,12 +724,12 @@ short osi_WiFi_Connect_Test(void)
 {
     short test_status = -1;
 
-    // osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+    //  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
     xSemaphoreTake(xMutex2, -1);
 
     test_status = WiFi_Connect_Test();
 
-    // osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+    //  xSemaphoreGive(xMutex2); //SimpleLink Semaphore Give
     xSemaphoreGive(xMutex2);
 
     return test_status;
@@ -741,7 +739,6 @@ extern bool ap_mode_status;
 extern bool AP_MODE_END_FLAG;
 extern volatile bool AP_MODE_END;
 extern TaskHandle_t xBinary13; //Task End Check
-extern web_post_wifi web_post_wifi_msg;
 extern TaskHandle_t GR_LED_TaskHandle;
 extern TaskHandle_t GR_LED_FAST_TaskHandle;
 extern char UartGet[UART_REV_BUF_LEN];
@@ -775,15 +772,9 @@ void WlanAPMode(void *pvParameters)
     // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
     vTaskNotifyGiveFromISR(xBinary13, NULL);
 
-    Web_read_product();
-
-    Web_read_errcode();
-
-    memset(&web_post_wifi_msg, 0, sizeof(web_post_wifi_msg));
-
     xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
 
-    // osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+    //  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
     xSemaphoreTake(xMutex2, -1);
 
     start_softap();
@@ -850,112 +841,115 @@ void WlanAPMode(void *pvParameters)
         }
         ESP_LOGI(TAG, "Socket accepted ip address: %s", addr_str);
 
-        memset(UartGet, 0, sizeof(UartGet));
-        int len = recv(sock, UartGet, sizeof(UartGet) - 1, 0);
-        if (len < 0)
+        for (;;)
         {
-            ESP_LOGE(TAG, "Error occurred during receiving: errno %d", errno);
-        }
-        else if (len == 0)
-        {
-            ESP_LOGW(TAG, "Connection closed");
-        }
-        else
-        {
-            UartGet[len] = '\0';
+
+            memset(UartGet, 0, sizeof(UartGet));
+            int len = recv(sock, UartGet, sizeof(UartGet) - 1, 0);
+            if (len < 0)
+            {
+                ESP_LOGE(TAG, "Error occurred during receiving: errno %d", errno);
+            }
+            else if (len == 0)
+            {
+                ESP_LOGW(TAG, "Connection closed");
+            }
+            else
+            {
+                UartGet[len] = '\0';
 
 #ifdef DEBUG
-            osi_UartPrint_Mul("TCP_Recivebuffer:", UartGet);
+                osi_UartPrint_Mul("TCP_Recivebuffer:", UartGet);
 #endif
 
-            lRetVal = ParseTcpUartCmd(UartGet);
-            if (lRetVal < 0)
-            {
-                Tcp_Send(sock, FAILURED_CODE, strlen(FAILURED_CODE), 0);
-            }
-            else if (lRetVal == 0)
-            {
-                Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-            }
-            else if (lRetVal == 1) //Command:SetupWifi
-            {
-                Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-                break;
-            }
-            else if (lRetVal == 2) //{command: ReadProduct}
-            {
-                memset(UartGet, 0, sizeof(UartGet));
-                Read_Product_Set(UartGet, sizeof(UartGet));
-                Tcp_Send(sock, UartGet, strlen(UartGet), 0);
-            }
-            else if (lRetVal == 3) //Command:ReadWifi
-            {
-                memset(UartGet, 0, sizeof(UartGet));
-                Read_Wifi_Set(UartGet, sizeof(UartGet));
-                Tcp_Send(sock, UartGet, strlen(UartGet), 0);
-            }
-            else if (lRetVal == 4) //Command:GetLastError
-            {
-                memset(UartGet, 0, sizeof(UartGet));
-                Read_System_ERROR_Code(UartGet, sizeof(UartGet));
-                Tcp_Send(sock, UartGet, strlen(UartGet), 0);
-            }
-            else if (lRetVal == 5) //command:BreakOut
-            {
-                break;
-            }
-            else if (lRetVal == 6) //Command:ReadMetaData
-            {
-                memset(UartGet, 0, sizeof(UartGet));
-                Cmd_Read_MetaData(UartGet, sizeof(UartGet));
-                Tcp_Send(sock, UartGet, strlen(UartGet), 0);
-            }
-            else if (lRetVal == 9) //Command:ReadData
-            {
-                char data_len_buf[25];
-                unsigned long read_addr;
-                unsigned long save_data_num;
-
-                osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
-
-                if (POST_NUM)
+                lRetVal = ParseTcpUartCmd(UartGet);
+                if (lRetVal < 0)
                 {
-                    save_data_num = POST_NUM;
-                    read_addr = POST_ADDR;
+                    Tcp_Send(sock, FAILURED_CODE, strlen(FAILURED_CODE), 0);
+                }
+                else if (lRetVal == 0)
+                {
+                    Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
+                }
+                else if (lRetVal == 1) //Command:SetupWifi
+                {
+                    Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
+                    break;
+                }
+                else if (lRetVal == 2) //{command: ReadProduct}
+                {
+                    memset(UartGet, 0, sizeof(UartGet));
+                    Read_Product_Set(UartGet, sizeof(UartGet));
+                    Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+                }
+                else if (lRetVal == 3) //Command:ReadWifi
+                {
+                    memset(UartGet, 0, sizeof(UartGet));
+                    Read_Wifi_Set(UartGet, sizeof(UartGet));
+                    Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+                }
+                else if (lRetVal == 4) //Command:GetLastError
+                {
+                    memset(UartGet, 0, sizeof(UartGet));
+                    Read_System_ERROR_Code(UartGet, sizeof(UartGet));
+                    Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+                }
+                else if (lRetVal == 5) //command:BreakOut
+                {
+                    break;
+                }
+                else if (lRetVal == 6) //Command:ReadMetaData
+                {
+                    memset(UartGet, 0, sizeof(UartGet));
+                    Cmd_Read_MetaData(UartGet, sizeof(UartGet));
+                    Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+                }
+                else if (lRetVal == 9) //Command:ReadData
+                {
+                    char data_len_buf[25];
+                    unsigned long read_addr;
+                    unsigned long save_data_num;
 
-                    snprintf(data_len_buf, sizeof(data_len_buf), "{\"save_data_sum\":%d}", save_data_num);
-                    Tcp_Send(sock, data_len_buf, strlen(data_len_buf), 0);
-                    Tcp_Send(sock, "\r\n", strlen("\r\n"), 0);
+                    osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
 
-                    while (save_data_num--)
+                    if (POST_NUM)
                     {
-                        memset(UartGet, 0, sizeof(UartGet));
-                        osi_w25q_ReadData(read_addr, UartGet, 0xff, NULL);
-                        Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+                        save_data_num = POST_NUM;
+                        read_addr = POST_ADDR;
+
+                        snprintf(data_len_buf, sizeof(data_len_buf), "{\"save_data_sum\":%ld}", save_data_num);
+                        Tcp_Send(sock, data_len_buf, strlen(data_len_buf), 0);
                         Tcp_Send(sock, "\r\n", strlen("\r\n"), 0);
-                        read_addr += 1 + strlen(UartGet); //end whit '!'
-                        sys_run_time = 0;                 //clear system time out
+
+                        while (save_data_num--)
+                        {
+                            memset(UartGet, 0, sizeof(UartGet));
+                            osi_w25q_ReadData(read_addr, UartGet, 0xff, NULL);
+                            Tcp_Send(sock, UartGet, strlen(UartGet), 0);
+                            Tcp_Send(sock, "\r\n", strlen("\r\n"), 0);
+                            read_addr += 1 + strlen(UartGet); //end whit '!'
+                            sys_run_time = 0;                 //clear system time out
+                        }
                     }
                 }
+                else if (lRetVal == 10) //Command:ClearData
+                {
+                    Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
+                    vTaskDelete(GR_LED_TaskHandle);                                                                        //delete Green and Red Led Flash Task
+                    SET_GREEN_LED_OFF();                                                                                   //Set Green Led Off
+                    osi_Save_Data_Reset();                                                                                 //Nor Flash Memory Chip Reset
+                    xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
+                }
             }
-            else if (lRetVal == 10) //Command:ClearData
-            {
-                Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-                osi_TaskDelete(&GR_LED_TaskHandle);                                                                    //delete Green and Red Led Flash Task
-                SET_GREEN_LED_OFF();                                                                                   //Set Green Led Off
-                osi_Save_Data_Reset();                                                                                 //Nor Flash Memory Chip Reset
-                xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
-            }
+            sys_run_time = 0; //clear system time out
         }
         sys_run_time = 0; //clear system time out
+        if ((lRetVal == 1) || (lRetVal == 5) || (AP_MODE_END))
+        {
+            break;
+        }
     }
 
-    sys_run_time = 0; //clear system time out
-
-    if ((lRetVal == 1) || (lRetVal == 5) || (AP_MODE_END))
-    {
-        break;
-    }
     // }
 
 CLEAN_UP:
@@ -963,16 +957,16 @@ CLEAN_UP:
     close(listen_sock);
     stop_user_wifi();
 
-    osi_TaskDelete(&GR_LED_TaskHandle); //delete Green and Red Led Flash Task
-    SET_GREEN_LED_OFF();                //Set Green Led Off
-    SET_RED_LED_OFF();                  //Set Red Led Off
+    vTaskDelete(GR_LED_TaskHandle); //delete Green and Red Led Flash Task
+    SET_GREEN_LED_OFF();            //Set Green Led Off
+    SET_RED_LED_OFF();              //Set Red Led Off
 
     if ((lRetVal == 1) || (AP_MODE_END))
     {
         osi_bell_makeSound(200);
         xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 7, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task
         lRetVal = WiFi_Connect_Test();                                                                                        //wlan connect test
-        osi_TaskDelete(&GR_LED_FAST_TaskHandle);                                                                              //delete Green and Red Led Fast Flash Task
+        vTaskDelete(GR_LED_FAST_TaskHandle);                                                                                  //delete Green and Red Led Fast Flash Task
         SET_GREEN_LED_OFF();                                                                                                  //Set Green Led Off
         SET_RED_LED_OFF();                                                                                                    //Set Red Led Off
         osi_bell_makeSound(200);
@@ -997,7 +991,7 @@ CLEAN_UP:
         xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
     }
 
-    osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+    xSemaphoreGive(xMutex2); //SimpleLink Semaphore Give
     ap_mode_status = 0;
     AP_MODE_END_FLAG = 0;
     // MAP_UtilsDelay(80000); //delay about 6ms

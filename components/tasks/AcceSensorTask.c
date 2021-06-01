@@ -11,16 +11,15 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include "stdlib.h"
-#include "stdbool.h"
-#include "math.h"
-#include "osi.h"
-#include "hw_types.h"
-#include "hw_memmap.h"
-#include "rom_map.h"
-#include "utils.h"
-#include "gpio.h"
-#include "cc_types.h"
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include "esp_system.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "driver/gpio.h"
+
 #include "MsgType.h"
 #include "adxl345.h"
 #include "PCF8563.h"
@@ -29,10 +28,10 @@
 
 #define ERROR_CODE 0xffff
 
-extern OsiSyncObj_t xBinary5;  //For Acceleration SensorTask//
-extern OsiSyncObj_t xBinary12; //For Acce Sensor Interrupt Task//
-extern OsiMsgQ_t xQueue0;      //Used for cjson and memory save//
-extern OsiSyncObj_t xMutex1;   //Used for SPI Lock//
+extern TaskHandle_t xBinary5;  //For Acceleration SensorTask//
+extern TaskHandle_t xBinary12; //For Acce Sensor Interrupt Task//
+extern QueueHandle_t xQueue0;  //Used for cjson and memory save//
+extern TaskHandle_t xMutex1;   //Used for SPI Lock//
 
 extern volatile bool data_post; //need post data immediately//
 extern volatile bool acce_act;  //acceleration sensor active//
@@ -53,9 +52,9 @@ uint8_t osi_adx345_readReg(uint8_t addr)
   uint8_t read_val;
 
 #ifdef ADXL345_SPI
-  osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+  xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
   read_val = adx345_readReg(addr);
-  osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+  xSemaphoreGive(xMutex1); //SPI Semaphore Give
 #endif
 #ifdef ADXL345_IIC
   vTaskSuspendAll(); //disable the tasks
@@ -82,8 +81,8 @@ void acce_sensor_reset(void)
     set_val |= 0x60; //6:SINGLE_TAP/DOUBLE_TAP Interrupt Enable
   }
 #ifdef ADXL345_SPI
-  osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
-  if (adx345_readReg(DEVICE_ID) == 0xE5)       //read the sensor device id
+  xSemaphoreTake(xMutex1, -1);           //SPI Semaphore Take
+  if (adx345_readReg(DEVICE_ID) == 0xE5) //read the sensor device id
   {
     if (fn_acc_tap1 || fn_acc_tap2 || fn_acc_act)
     {
@@ -99,7 +98,7 @@ void acce_sensor_reset(void)
       adx345_writeReg(POWER_CTL, 0x24); //link mode,standby mode,deep sleep mode
     }
   }
-  osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+  xSemaphoreGive(xMutex1); //SPI Semaphore Give
 #endif
 #ifdef ADXL345_IIC
   vTaskSuspendAll();                     //disable the tasks
@@ -129,9 +128,9 @@ void acce_sensor_reset(void)
 static void osi_adxl_read(short *x_val, short *y_val, short *z_val)
 {
 #ifdef ADXL345_SPI
-  osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+  xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
   ADXL345_RD_xyz(x_val, y_val, z_val);
-  osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+  xSemaphoreGive(xMutex1); //SPI Semaphore Give
 #endif
 #ifdef ADXL345_IIC
   vTaskSuspendAll();                   //disable the tasks
@@ -145,7 +144,7 @@ static void osi_adxl_read(short *x_val, short *y_val, short *z_val)
 *******************************************************************************/
 static void AccelerationValue(float *accevalue)
 {
-  float SumAcce;
+  float SumAcce = 0;
   uint8_t i_time = 0;
   uint8_t m_time, n_time;
   short x1_val, y1_val, z1_val;
@@ -201,10 +200,10 @@ void AcceSensor_Int_Task(void *pvParameters)
 
   for (;;)
   {
-    // osi_SyncObjWait(&xBinary12, OSI_WAIT_FOREVER); //Waite GPIO Interrupt Message
+    // osi_SyncObjWait(&xBinary12, -1); //Waite GPIO Interrupt Message
     ulTaskNotifyTake(pdTRUE, -1);
 
-    if (!GPIOPinRead(ACCE_PORT, ACCE_PIN))
+    if (!gpio_get_level(ACCE_SRC_WKUP))
     {
       acce_status = osi_adx345_readReg(INT_SOURCE);
 #ifdef DEBUG
@@ -233,10 +232,11 @@ void AcceSensor_Int_Task(void *pvParameters)
           {
             data_post = 1; //Need Post Data Immediately
           }
-          xMsg.sensornum = TAP_NUM;                    //Message Number
-          xMsg.sensorval = f7_a * 2 + f7_b;            //Message Value
-          osi_MsgQWrite(&xQueue0, &xMsg, OSI_NO_WAIT); //Send Acceleration Value
-          MAP_UtilsDelay(4000000);                     //300ms
+          xMsg.sensornum = TAP_NUM;         //Message Number
+          xMsg.sensorval = f7_a * 2 + f7_b; //Message Value
+          xQueueSend(xQueue0, &xMsg, 0);    //Send Acceleration Value
+
+          MAP_UtilsDelay(4000000); //300ms
         }
       }
       else if (acce_status & 0x40) //ACCE Sensor SINGLE_TAP Interrupt
@@ -247,10 +247,10 @@ void AcceSensor_Int_Task(void *pvParameters)
           {
             data_post = 1; //Need Post Data Immediately
           }
-          xMsg.sensornum = TAP_NUM;                    //Message Number
-          xMsg.sensorval = f7_a * 1 + f7_b;            //Message Value
-          osi_MsgQWrite(&xQueue0, &xMsg, OSI_NO_WAIT); //Send Acceleration Value
-          MAP_UtilsDelay(4000000);                     //300ms
+          xMsg.sensornum = TAP_NUM;         //Message Number
+          xMsg.sensorval = f7_a * 1 + f7_b; //Message Value
+          xQueueSend(xQueue0, &xMsg, 0);    //Send Acceleration Value
+          MAP_UtilsDelay(4000000);          //300ms
         }
       }
 
@@ -274,7 +274,7 @@ void AccelerationSensorTask(void *pvParameters)
 
   for (;;)
   {
-    // osi_SyncObjWait(&xBinary5, OSI_WAIT_FOREVER); //Wait AcceSensor Interrupt Message
+    // osi_SyncObjWait(&xBinary5, -1); //Wait AcceSensor Interrupt Message
     ulTaskNotifyTake(pdTRUE, -1);
 
     acce_read = 0;
@@ -292,9 +292,9 @@ void AccelerationSensorTask(void *pvParameters)
       AccelerationValue(&accevalue); //read acceleration value
       if (accevalue != ERROR_CODE)
       {
-        aMsg.sensornum = ACCE_NUM;                   //Message Number
-        aMsg.sensorval = f6_a * accevalue + f6_b;    //Message Value
-        osi_MsgQWrite(&xQueue0, &aMsg, OSI_NO_WAIT); //send acceleration value
+        aMsg.sensornum = ACCE_NUM;                //Message Number
+        aMsg.sensorval = f6_a * accevalue + f6_b; //Message Value
+        xQueueSend(xQueue0, &aMsg, 0);            //send acceleration value
       }
       sys_run_time = 0; //clear system time out
     }

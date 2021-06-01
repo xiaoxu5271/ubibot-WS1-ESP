@@ -11,21 +11,15 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include "stdint.h"
-
+#include "freertos/FreeRTOS.h"
 
 /*******************************************************************************
  FUNCTION PROTOTYPES
 *******************************************************************************/
-extern uint8_t Data_Crc_Check(uint8_t *data,uint8_t bytes);  //CRC-8 Check,No Error-Return 0 
+extern uint8_t Data_Crc_Check(uint8_t *data, uint8_t bytes); //CRC-8 Check,No Error-Return 0
 
-extern uint8_t Data_Crc_Value(uint8_t *data,uint8_t bytes);  //get CRC-8 value
-
+extern uint8_t Data_Crc_Value(uint8_t *data, uint8_t bytes); //get CRC-8 value
 
 /*******************************************************************************
                                       END         
 *******************************************************************************/
-
-
-
-

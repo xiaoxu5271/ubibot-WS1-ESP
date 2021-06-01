@@ -19,6 +19,7 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
@@ -56,7 +57,7 @@
 extern uint8_t Host_Flag;
 extern uint8_t HOST_IP[4];
 
-extern OsiMsgQ_t xQueue0; //Used for cjson and memory save
+extern QueueHandle_t xQueue0; //Used for cjson and memory save
 
 extern TaskHandle_t xBinary0;  //For DataPostTask interrupt
 extern TaskHandle_t xBinary11; //For Memory Delete Task
@@ -89,11 +90,6 @@ extern volatile uint8_t save_addr_flag;
 extern volatile unsigned long fn_dp; //data post frequence
 extern volatile bool usb_status_val; //usb status
 
-extern volatile unsigned long g_ulStatus; //SimpleLink Status
-extern unsigned long g_ulStaIp;
-extern unsigned long g_ulGatewayIP;     //Network Gateway IP address
-extern unsigned long g_ulDestinationIP; //IP address of destination server
-
 //extern unsigned char            g_buff[MAX_BUFF_SIZE+1];
 extern float f5_a, f5_b;
 extern volatile unsigned long POST_NUM;
@@ -124,7 +120,7 @@ static int readResponse(esp_http_client_handle_t httpClient)
     if (data_read >= 0)
     {
       lRetVal = esp_http_client_get_status_code(httpClient);
-      ESP_LOGI(TAG, "HTTP GET Status = %d, data_read = %d",
+      ESP_LOGI(TAG, "HTTP GET Status = %ld, data_read = %d",
                lRetVal,
                data_read);
       ESP_LOGI(TAG, "GET Request READ:\n%s", Read_Response_Buffer);
@@ -137,7 +133,7 @@ static int readResponse(esp_http_client_handle_t httpClient)
 
   // Read_Response_Buffer[bytesRead] = '\0';
 
-  // osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
+  //  xSemaphoreTake(xMutex3, -1); //cJSON Semaphore Take
   xSemaphoreTake(xMutex3, -1);
 
   switch (lRetVal)
@@ -187,7 +183,7 @@ static int readResponse(esp_http_client_handle_t httpClient)
   break;
   }
 
-  // osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
+  //  xSemaphoreGive(xMutex3); //cJSON Semaphore Give
   xSemaphoreGive(xMutex3);
 
   return lRetVal;
@@ -296,11 +292,11 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
 
   base64_encode(SSID_NAME, strlen(SSID_NAME), base64_ssid, sizeof(base64_ssid));
 
-  mem_copy(POST_REQUEST_URI + url_len, "&ssid_base64=", strlen("&ssid_base64="));
+  memcpy(POST_REQUEST_URI + url_len, "&ssid_base64=", strlen("&ssid_base64="));
 
   url_len += strlen("&ssid_base64=");
 
-  mem_copy(POST_REQUEST_URI + url_len, base64_ssid, strlen(base64_ssid));
+  memcpy(POST_REQUEST_URI + url_len, base64_ssid, strlen(base64_ssid));
 
   url_len += strlen(base64_ssid);
 
@@ -311,7 +307,7 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
            usb_status_val,
            base64_ssid); //MAC SSID USB
 
-  ESP_LOGI(TAG, POST_REQUEST_URI);
+  ESP_LOGI(TAG, "%s", POST_REQUEST_URI);
 
   esp_http_client_set_url(httpClient, POST_REQUEST_URI);
   esp_http_client_set_method(httpClient, HTTP_METHOD_POST);
@@ -320,7 +316,7 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
   lRetVal = esp_http_client_open(httpClient, (DataLen + strlen(status_buf) + strlen(wifi_buf) - 1 + strlen(calidata_buf) + 8));
   if (lRetVal != ESP_OK)
   {
-    ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(lRetVal));
   }
 
   MemoryAddr = POST_ADDR;
@@ -344,7 +340,7 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
       EndFlag = 1;
     }
 
-    // osi_SyncObjWait(&xMutex5, OSI_WAIT_FOREVER); //Post_Data_Buffer Semaphore Take
+    //  xSemaphoreTake(xMutex5, -1); //Post_Data_Buffer Semaphore Take
     xSemaphoreTake(xMutex5, -1);
 
     MemoryAddr = Read_PostDataBuffer(MemoryAddr, Post_Data_Buffer, post_data_sum, EndFlag); //read post data
@@ -354,7 +350,7 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
 #endif
 
     lRetVal = esp_http_client_write(httpClient, (const char *)Post_Data_Buffer, (strlen(Post_Data_Buffer))); //Send POST data/body
-    // osi_SyncObjSignal(&xMutex5); //Post_Data_Buffer Semaphore Give
+    //  xSemaphoreGive(xMutex5); //Post_Data_Buffer Semaphore Give
     xSemaphoreGive(xMutex5);
     if (lRetVal < 0)
     {
@@ -509,11 +505,11 @@ void PostAddrChage(unsigned long data_num, unsigned long end_addr)
 
   if (POST_NUM >= data_num)
   {
-    osi_EnterCritical(); //enter critical
+    portENTER_CRITICAL(0); //enter critical
 
     POST_NUM -= data_num;
 
-    osi_ExitCritical(0); //exit critical
+    portEXIT_CRITICAL(0); //exit critical
   }
   else
   {
@@ -564,12 +560,12 @@ void DataPostTask(void *pvParameters)
 
   for (;;)
   {
-    // osi_SyncObjWait(&xBinary0,OSI_WAIT_FOREVER);  //Wait For The Operation Message
+    // osi_SyncObjWait(&xBinary0,-1);  //Wait For The Operation Message
     ulTaskNotifyTake(pdTRUE, -1);
 
     Err_Status = 1;
 
-    // osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+    //  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
     xSemaphoreTake(xMutex2, -1);
 
     sys_run_time = 0; //clear wifi post time
@@ -707,7 +703,7 @@ void DataPostTask(void *pvParameters)
 
     POST_TASK_END_FLAG = 0;
 
-    // osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+    //  xSemaphoreGive(xMutex2); //SimpleLink Semaphore Give
     xSemaphoreGive(xMutex2);
 
     // osi_SyncObjSignalFromISR(&xBinary11); //start delete task

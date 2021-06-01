@@ -129,7 +129,7 @@ void sht30_SingleShotMeasure(float *temp, float *humi)
     MAP_UtilsDelay(60000); //delay about 4.5ms
   }
 
-end:
+  // end:
 
   // IIC_Stop(); //IIC stop
   i2c_master_stop(cmd);

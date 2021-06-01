@@ -6,20 +6,6 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
-#include <stdio.h>
-#include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_system.h"
-#include "esp_spi_flash.h"
-#include "esp_log.h"
-#include "driver/uart.h"
-#include "driver/gpio.h"
-#include "nvs_flash.h"
-#include "esp_sleep.h"
-#include "esp_task_wdt.h"
-
-#include "app_config.h"
 
 /*******************************************************************************
   * @file       MAIN FUNCTION PROTOTYPES      
@@ -36,48 +22,25 @@
 /*-------------------------------- Includes ----------------------------------*/
 #include "string.h"
 #include "math.h"
+#include "cJSON.h" //JSON Parse
+#include <stdio.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_spi_flash.h"
+#include "esp_log.h"
+#include "driver/uart.h"
+#include "driver/gpio.h"
+#include "nvs_flash.h"
+#include "esp_sleep.h"
+#include "esp_task_wdt.h"
 
-// #include "stdlib.h"
-// #include "FreeRTOS.h"
-// #include "task.h"
-// #include "osi.h" //Free-RTOS includes
-
-// #include "hw_ints.h" //driverlib includes
-// #include "hw_types.h"
-// #include "hw_memmap.h"
-// #include "interrupt.h"
-// #include "prcm.h"
-// #include "utils.h"
-// #include "rom.h"
-// #include "rom_map.h"
-
-// #include "simplelink.h" //Simplelink includes
-
-// #include "cc_types.h" //middleware includes
-// #include "rtc_hal.h"
-// #include "gpio_hal.h"
-// #include "uart_drv.h"
-// #include "cc_timer.h"
-// #include "cc_pm_ops.h"
-
-// #include "uart.h" //Common driver
-// #include "uart_if.h"
-// #include "timer.h"
-// #include "timer_if.h"
-// #include "common.h"
-// #include "wdt.h"
-// #include "wdt_if.h"
-// #include "pinmux.h"
-
-// #include <http/client/httpcli.h> //HTTP Client lib
-// #include <http/client/common.h>
-
-#include "cJSON.h" //JSON Parser
+#include "app_config.h"
 #include "JsonParse.h"
-
 #include "iic.h" //user driver header
 #include "user_spi.h"
-#include "ht1621.h"
+// #include "ht1621.h"
 #include "sht30dis.h"
 #include "opt3001.h"
 #include "at24c08.h"
@@ -160,12 +123,6 @@ TaskHandle_t GR_LED_FAST_TaskHandle;
 //OsiTaskHandle           Timer_Check_TaskHandle;
 //OsiTaskHandle           F_RESET_TaskHandle;
 
-volatile unsigned long g_ulStatus = 0; //SimpleLink Status
-unsigned long g_ulStaIp = 0;
-unsigned long g_ulDestinationIP;					//IP address of destination server
-unsigned long g_ulGatewayIP = 0;					//Network Gateway IP address
-unsigned char g_ucConnectionSSID[SSID_LEN_MAX + 1]; //Connection SSID
-unsigned char g_ucConnectionBSSID[BSSID_LEN_MAX];	//Connection BSSID MAC 地址
 //unsigned char           g_buff[MAX_BUFF_SIZE+1];
 
 volatile bool POST_TASK_END_FLAG = 0;
@@ -288,7 +245,6 @@ unsigned char __SL_P_WST[] = "__SL_P_WST";
 unsigned char __SL_P_WPW[] = "__SL_P_WPW";
 
 char ssid_buf[10][64] = {0};
-extern Sl_WlanNetworkEntry_t netEntries[20]; // Wlan Network Entry
 web_product web_product_msg;
 web_errcode web_errcode_msg;
 web_post_wifi web_post_wifi_msg;
@@ -306,7 +262,7 @@ void Web_read_product(void)
 {
 	uint8_t read_len;
 	char mac_addr[8] = {0};
-	uint8_t read_buf[64];
+	uint8_t read_buf[32];
 
 	memset(&web_product_msg, 0, sizeof(web_product_msg));
 
@@ -331,7 +287,7 @@ void Web_read_product(void)
 	memset(read_buf, 0, sizeof(read_buf));
 
 	// osi_at24c08_ReadData(MAC_ADDR, (uint8_t *)mac_addr, SL_MAC_ADDR_LEN, 0); //Read MAC
-	esp_read_mac(mac_addr, 0); //获取芯片内部默认出厂MAC
+	esp_read_mac((uint8_t *)mac_addr, 0); //获取芯片内部默认出厂MAC
 
 	snprintf((char *)read_buf, sizeof(read_buf), "%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
 
@@ -339,7 +295,7 @@ void Web_read_product(void)
 
 	snprintf((char *)web_product_msg.pfw, sizeof(web_product_msg.pfw), "{\"set_wifi\":1,\"firmware\":\"%s\"}", FIRMWARENUM);
 
-	mem_set(SSID_NAME, 0, sizeof(SSID_NAME));
+	memset(SSID_NAME, 0, sizeof(SSID_NAME));
 
 	read_len = osi_at24c08_read_byte(SSID_LEN_ADDR);
 
@@ -365,55 +321,55 @@ void Web_read_errcode(void)
 	err_time = osi_at24c08_read(WD_RESET_ERR);
 	if (err_time)
 	{
-		snprintf((char *)web_errcode_msg.wrt, sizeof(web_errcode_msg.wrt), "{\"wd_rst\":%d}", err_time);
+		snprintf((char *)web_errcode_msg.wrt, sizeof(web_errcode_msg.wrt), "{\"wd_rst\":%ld}", err_time);
 	}
 
 	err_time = osi_at24c08_read(CNT_WIFI_FLR_ERR);
 	if (err_time)
 	{
-		snprintf((char *)web_errcode_msg.cwf, sizeof(web_errcode_msg.cwf), "{\"c_wf_flr\":%d}", err_time);
+		snprintf((char *)web_errcode_msg.cwf, sizeof(web_errcode_msg.cwf), "{\"c_wf_flr\":%ld}", err_time);
 	}
 
 	err_time = osi_at24c08_read(CNT_SERVER_FLR_ERR);
 	if (err_time)
 	{
-		snprintf((char *)web_errcode_msg.csf, sizeof(web_errcode_msg.csf), "{\"c_srv_flr\":%d}", err_time);
+		snprintf((char *)web_errcode_msg.csf, sizeof(web_errcode_msg.csf), "{\"c_srv_flr\":%ld}", err_time);
 	}
 
 	err_time = osi_at24c08_read(API_GET_FLR_ERR);
 	if (err_time)
 	{
-		snprintf((char *)web_errcode_msg.agf, sizeof(web_errcode_msg.agf), "{\"api_gt_flr\":%d}", err_time);
+		snprintf((char *)web_errcode_msg.agf, sizeof(web_errcode_msg.agf), "{\"api_gt_flr\":%ld}", err_time);
 	}
 
 	err_time = osi_at24c08_read(MEMORY_SAVE_DATA_ERR);
 	if (err_time)
 	{
-		snprintf((char *)web_errcode_msg.mde, sizeof(web_errcode_msg.mde), "{\"mry_dt_err\":%d}", err_time);
+		snprintf((char *)web_errcode_msg.mde, sizeof(web_errcode_msg.mde), "{\"mry_dt_err\":%ld}", err_time);
 	}
 
 	err_time = osi_at24c08_read(POST_DATA_JSON_FAULT);
 	if (err_time)
 	{
-		snprintf((char *)web_errcode_msg.pde, sizeof(web_errcode_msg.pde), "{\"pt_dt_js_err\":%d}", err_time);
+		snprintf((char *)web_errcode_msg.pde, sizeof(web_errcode_msg.pde), "{\"pt_dt_js_err\":%ld}", err_time);
 	}
 
 	err_time = osi_at24c08_read(POST_DATA_FLR_ERR);
 	if (err_time)
 	{
-		snprintf((char *)web_errcode_msg.pdf, sizeof(web_errcode_msg.pdf), "{\"pt_dt_flr\":%d}", err_time);
+		snprintf((char *)web_errcode_msg.pdf, sizeof(web_errcode_msg.pdf), "{\"pt_dt_flr\":%ld}", err_time);
 	}
 
 	err_time = osi_at24c08_read(SCN_WF_FLR_ERR);
 	if (err_time)
 	{
-		snprintf((char *)web_errcode_msg.swf, sizeof(web_errcode_msg.swf), "{\"scn_wf_flr\":%d}", err_time);
+		snprintf((char *)web_errcode_msg.swf, sizeof(web_errcode_msg.swf), "{\"scn_wf_flr\":%ld}", err_time);
 	}
 
 	err_time = osi_at24c08_read(WF_PWD_WR_ERR);
 	if (err_time)
 	{
-		snprintf((char *)web_errcode_msg.wpw, sizeof(web_errcode_msg.wpw), "{\"wf_pwd_wr\":%d}", err_time);
+		snprintf((char *)web_errcode_msg.wpw, sizeof(web_errcode_msg.wpw), "{\"wf_pwd_wr\":%ld}", err_time);
 	}
 }
 
@@ -643,7 +599,7 @@ void Timer_Check_Task(void *pvParameters)
 
 	for (;;)
 	{
-		// osi_SyncObjWait(&xBinary9, OSI_WAIT_FOREVER); //Wait Task Operation Message
+		// osi_SyncObjWait(&xBinary9, -1); //Wait Task Operation Message
 		ulTaskNotifyTake(pdTRUE, -1);
 
 		osi_Read_UnixTime(); //update system unix time
@@ -765,7 +721,7 @@ void Timer_Check_Task(void *pvParameters)
 		}
 
 		// osi_MsgQWrite(&xQueue3, &msg_slp_val, OSI_NO_WAIT); //send to WatchDog and SleepTimer message
-		xQueueSend(xQueue3, &msg_slp_val, -1);
+		xQueueSend(xQueue3, &msg_slp_val, 0);
 	}
 }
 
@@ -780,7 +736,7 @@ void WaterMark_Check(void *pvParameters)
 
 	for (;;)
 	{
-		// osi_SyncObjWait(&xBinary14, OSI_WAIT_FOREVER); //Wait Task Operation Message
+		// osi_SyncObjWait(&xBinary14, -1); //Wait Task Operation Message
 		ulTaskNotifyTake(pdTRUE, -1);
 
 		watermark = uxTaskGetStackHighWaterMark(UpdateTimeTaskHandle);
@@ -887,7 +843,7 @@ void Usb_Mode_Task(void *pvParameters)
 
 	for (;;)
 	{
-		// osi_SyncObjWait(&xBinary15, OSI_WAIT_FOREVER); //Wait Task Operation Message
+		// osi_SyncObjWait(&xBinary15, -1); //Wait Task Operation Message
 		ulTaskNotifyTake(pdTRUE, -1);
 
 		usb_t = 0;
@@ -1040,7 +996,7 @@ void ApikeyGetTask(void *pvParameters)
 	uint8_t re_try;
 	int lRetVal = -1;
 
-	// osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+	//  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
 	xSemaphoreTake(xMutex2, -1);
 
 	PostSetData = 1;
@@ -1097,7 +1053,7 @@ void ApikeyGetTask(void *pvParameters)
 
 	APIGET_TASK_END_FLAG = 0;
 
-	// osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+	//  xSemaphoreGive(xMutex2); //SimpleLink Semaphore Give
 	xSemaphoreGive(xMutex2);
 
 	if (lRetVal == SUCCESS)
@@ -1145,7 +1101,7 @@ void UpdateTimeTask(void *pvParameters)
 	int lRetVal = -1;
 	// OsiTaskHandle upd_TaskHandle = NULL;
 
-	// osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+	//  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
 	xSemaphoreTake(xMutex2, -1);
 
 	update_time = 1;
@@ -1191,7 +1147,7 @@ void UpdateTimeTask(void *pvParameters)
 
 	UPDATETIME_TASK_END_FLAG = 0;
 
-	// osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+	//  xSemaphoreGive(xMutex2); //SimpleLink Semaphore Give
 	xSemaphoreGive(xMutex2);
 
 	osi_Read_UnixTime(); //read unix time
@@ -1229,7 +1185,7 @@ void Usb_Set_Mode(void *pvParameters)
 {
 	// OsiTaskHandle WUS_TaskHandle = NULL;
 
-	// osi_SyncObjWait(&xBinary16, OSI_WAIT_FOREVER); //Wait Task Operation Message
+	// osi_SyncObjWait(&xBinary16, -1); //Wait Task Operation Message
 	ulTaskNotifyTake(pdTRUE, -1);
 
 	xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
@@ -1259,7 +1215,7 @@ void F_ResetTask(void *pvParameters)
 	osi_Error_Code_Init(); //Error Code Init Save in At24c08 whit locked
 
 	//重置网络以及MAC esp32 应该不需要
-	// osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
+	//  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
 	// APIGET_TASK_END_FLAG = 1;
 	// // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
 	// vTaskNotifyGiveFromISR(xBinary13, NULL);
@@ -1268,7 +1224,7 @@ void F_ResetTask(void *pvParameters)
 	// sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
 	// MAP_UtilsDelay(80000);	  //delay about 6ms
 	// APIGET_TASK_END_FLAG = 0;
-	// osi_SyncObjSignal(&xMutex2);
+	//  xSemaphoreGive(xMutex2);
 	//SimpleLink Semaphore Give
 	// esp_read_mac(mac_addr, 0);
 	// osi_at24c08_WriteData(MAC_ADDR, (uint8_t *)mac_addr, SL_MAC_ADDR_LEN, 0); //save type
@@ -1276,7 +1232,7 @@ void F_ResetTask(void *pvParameters)
 	SET_GREEN_LED_OFF(); //LED OFF
 	acce_sensor_reset(); //check acce sensor
 
-	mem_set(rest_buf, 0, sizeof(rest_buf));
+	memset(rest_buf, 0, sizeof(rest_buf));
 
 	osi_at24c08_WriteData(SSID_FLAG_ADDR, rest_buf, 7, 1); //deleted ssid flag
 	osi_at24c08_write_byte(SSID_LEN_ADDR, 0);
@@ -1337,7 +1293,7 @@ void ButtonPush_Int_Task(void *pvParameters)
 
 	for (;;)
 	{
-		// osi_SyncObjWait(&xBinary1, OSI_WAIT_FOREVER); //Waite Button GPIO Interrupt Message
+		// osi_SyncObjWait(&xBinary1, -1); //Waite Button GPIO Interrupt Message
 		ulTaskNotifyTake(pdTRUE, -1);
 
 		// if (!gpio_get_level(BUTTON_PIN))
@@ -1369,11 +1325,12 @@ void ButtonPush_Int_Task(void *pvParameters)
 
 			if (Button_Push >= 200) //power off
 			{
-				osi_at24c08_WriteData(SYSTEM_STATUS_ADDR, SYSTEM_OFF, strlen(SYSTEM_OFF), 1); //Restor The System Status-OFF
+				osi_at24c08_WriteData(SYSTEM_STATUS_ADDR, (uint8_t *)SYSTEM_OFF, strlen(SYSTEM_OFF), 1); //Restor The System Status-OFF
 
 				for (;;) //never loop
 				{
-					cc_idle_task_pm(); //Enter Hiberate Mode
+					//休眠
+					// cc_idle_task_pm(); //Enter Hiberate Mode
 				}
 			}
 			else
@@ -1444,7 +1401,7 @@ void ButtonPush_Int_Task(void *pvParameters)
 *******************************************************************************/
 static void SET_Power_OFF(void)
 {
-	at24c08_WriteData(SYSTEM_STATUS_ADDR, SYSTEM_OFF, strlen(SYSTEM_OFF), 1); //Restor The System Status-OFF
+	at24c08_WriteData(SYSTEM_STATUS_ADDR, (uint8_t *)SYSTEM_OFF, strlen(SYSTEM_OFF), 1); //Restor The System Status-OFF
 
 	Sensor_Power_OFF(); //Set Sensors In Power Down  Mode
 
@@ -1464,7 +1421,7 @@ void Tasks_Check_Task(void *pvParameters)
 
 	for (;;)
 	{
-		// osi_SyncObjWait(&xBinary13, OSI_WAIT_FOREVER); //Wait Task Start Message
+		// osi_SyncObjWait(&xBinary13, -1); //Wait Task Start Message
 		ulTaskNotifyTake(pdTRUE, -1);
 
 		w_t_out = 0;
@@ -1627,7 +1584,7 @@ void System_Variables_Init(void)
 	xQueue3 = xQueueCreate(2, sizeof(uint8_t));
 
 	// osi_MsgQCreate(&HttpMsg_Queue, "HttpMsg_Queue", sizeof(uint8_t), 3); //Used for http server resolve
-	HttpMsg_Queue = xQueueCreate(3, sizeof(uint8_t));
+	// HttpMsg_Queue = xQueueCreate(3, sizeof(uint8_t));
 }
 
 /*******************************************************************************
@@ -1660,11 +1617,10 @@ static short Read_System_Status(uint8_t *read_flag, uint8_t buf_len)
 void WatchDog_Reset_Task(void *pvParameters)
 {
 	uint8_t msg_val;
-	int rtc_result = 0;
 
 	for (;;)
 	{
-		// osi_MsgQRead(&xQueue3, &msg_val, OSI_WAIT_FOREVER); //Wait WatchDog and SleepTimer Task Start Message
+		// osi_MsgQRead(&xQueue3, &msg_val, -1); //Wait WatchDog and SleepTimer Task Start Message
 		xQueueReceive(xQueue3, &msg_val, portMAX_DELAY);
 
 		if (msg_val == MSG_SLP_VAL)
@@ -1682,16 +1638,17 @@ void WatchDog_Reset_Task(void *pvParameters)
 		}
 		// else if (msg_val == MSG_WD_VAL)
 		// {
-		// 	osi_EnterCritical(); //enter critical
+		// 	portENTER_CRITICAL(); //enter critical
 
 		// 	WatchdogAck(); //Acknowledge the watchdog
 
-		// 	osi_ExitCritical(0); //exit crtitcal
+		// 	taskEXIT_CRITICAL(0); //exit crtitcal
 		// }
 
 		if (sys_run_time > SYS_RUN_TIMEOUT)
 		{
-			Reboot_MCU(); //Reboot the MCU
+			// Reboot_MCU(); //Reboot the MCU
+			esp_restart();
 		}
 	}
 }
@@ -1708,7 +1665,7 @@ esp_timer_create_args_t timer_app_arg = {
 //TimerA0 Interrupt Handler
 //Reset The Watch Dog
 *******************************************************************************/
-void timer_app_cb(*arg)
+void timer_app_cb(void *arg)
 {
 	// Timer_IF_InterruptClear(TIMERA0_BASE); //Clear the timer interrupt bit
 	sys_run_time += 1;
@@ -1927,11 +1884,11 @@ void app_main(void)
 
 			if (push_time >= 20) //Push Time>=3s or USB connected Power ON
 			{
-				SET_GREEN_LED_OFF();													//LED OFF
-				at24c08_WriteData(SYSTEM_STATUS_ADDR, SYSTEM_ON, strlen(SYSTEM_ON), 1); //Restor The System Status-ON
-				Sensors_Init();															//Senosrs Init when power on
-																						// Set_GPIO_AsWkUp();														// setting GPIO wakeup source
-																						// lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE);						//Setting up HIBERNATE mode for the system
+				SET_GREEN_LED_OFF();															   //LED OFF
+				at24c08_WriteData(SYSTEM_STATUS_ADDR, (uint8_t *)SYSTEM_ON, strlen(SYSTEM_ON), 1); //Restor The System Status-ON
+				Sensors_Init();																	   //Senosrs Init when power on
+																								   // Set_GPIO_AsWkUp();														// setting GPIO wakeup source
+																								   // lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE);						//Setting up HIBERNATE mode for the system
 
 				xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 256, NULL, 1, &xBinary13);		   //Create Check Tasks End
 				xTaskCreate(Green_LedFlashed_Task, "Green_LedFlashed_Task", 256, NULL, 7, &xBinary17); //Create GREEN LED Blink Task When Internet Application
@@ -2015,12 +1972,9 @@ end:
 	// Timer_IF_Start(TIMERA0_BASE, TIMER_A, 100); //Start TIMERA0 values in nSec
 	// osi_start(); // Start the task scheduler
 
-	esp_err_t err = esp_timer_create(&timer_app_arg, &timer_app_handle);
-	err = esp_timer_start_periodic(timer_app_handle, 10000); //创建定时器，单位us，定时10ms
-	if (err != ESP_OK)
-	{
-		ESP_LOGI(TAG, "timer heart create err code:%d\n", err);
-	}
+	esp_timer_create(&timer_app_arg, &timer_app_handle);
+	esp_timer_start_periodic(timer_app_handle, 10000); //创建定时器，单位us，定时10ms
+
 	for (;;)
 		; //never go here
 }

@@ -11,21 +11,19 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include <stdlib.h>
-#include "osi.h"
-#include "rom_map.h"
-#include "utils.h"
+#include <stdio.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+
 #include "MsgType.h"
 #include "ds18b20.h"
-#include "ht1621.h"
+// #include "ht1621.h"
 #include "PeripheralDriver.h"
 
-extern OsiSyncObj_t xBinary6; //For external Temprature Measure
-extern OsiMsgQ_t xQueue0;     //Used for cjson and memory save
-
-#ifdef USE_LCD
-extern OsiSyncObj_t xMutex6; //Used for Ht1621 LCD Driver
-#endif
+extern TaskHandle_t xBinary6; //For external Temprature Measure
+extern QueueHandle_t xQueue0; //Used for cjson and memory save
 
 extern float f8_a, f8_b;
 
@@ -39,7 +37,7 @@ void ExtTempMeasureTask(void *pvParameters)
 
   for (;;)
   {
-    // osi_SyncObjWait(&xBinary6,OSI_WAIT_FOREVER);  //Wait Timer Interrupt Message
+    // osi_SyncObjWait(&xBinary6,-1);  //Wait Timer Interrupt Message
     ulTaskNotifyTake(pdTRUE, -1);
 
     water_temp = osi_ds18b20_get_temp(); //measure the temperature
@@ -47,14 +45,14 @@ void ExtTempMeasureTask(void *pvParameters)
     if (water_temp != ERROR_CODE)
     {
 #ifdef USE_LCD
-      osi_SyncObjWait(&xMutex6, OSI_WAIT_FOREVER); //LCD Semaphore Take
+      xSemaphoreTake(xMutex6, -1); //LCD Semaphore Take
       Ht1621_Display_Temp_Val(water_temp, 1);
-      osi_SyncObjSignal(&xMutex6); //LCD Semaphore Give
+      xSemaphoreGive(xMutex6); //LCD Semaphore Give
 #endif
 
-      wMsg.sensornum = EXT_NUM;                    //Message Number
-      wMsg.sensorval = f8_a * water_temp + f8_b;   //Message Value
-      osi_MsgQWrite(&xQueue0, &wMsg, OSI_NO_WAIT); //send noise data message
+      wMsg.sensornum = EXT_NUM;                  //Message Number
+      wMsg.sensorval = f8_a * water_temp + f8_b; //Message Value
+      xQueueSend(xQueue0, &wMsg, 0);             //send noise data message
     }
   }
 }

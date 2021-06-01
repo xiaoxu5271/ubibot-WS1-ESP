@@ -12,8 +12,6 @@
 
 /*-------------------------------- Includes ----------------------------------*/
 #include <stdlib.h>
-#include "osi.h"
-#include "stdint.h"
 #include "string.h"
 #include "stdbool.h"
 #include "stdio.h"
@@ -21,6 +19,8 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
 
 #include "MsgType.h"
 #include "w25q128.h"
@@ -31,7 +31,7 @@
 
 #define RETRY_TIME_OUT 3
 
-extern OsiMsgQ_t xQueue0;         //Used for cjson and memory save
+extern QueueHandle_t xQueue0;     //Used for cjson and memory save
 extern TaskHandle_t xBinary0;     //For DataPostTask interrupt
 extern TaskHandle_t xBinary11;    //For Memory Delete Task
 extern SemaphoreHandle_t xMutex1; //Used for SPI Lock
@@ -57,19 +57,19 @@ static void DataSave(char *buffer, uint8_t size)
 
   osi_w25q_Write_Addr_Check(WRITE_ADDR); //w25q128 check write address with locked
 
-  osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+  xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
   w25q_WriteData(WRITE_ADDR, buffer, size); //write data in nor-flash
 
-  osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+  xSemaphoreGive(xMutex1); //SPI Semaphore Give
 
-  osi_EnterCritical(); //enter critical
+  portENTER_CRITICAL(0); //enter critical
 
   POST_NUM += 1;
 
   WRITE_ADDR += 1 + size; //End with a '!'
 
-  osi_ExitCritical(0); //exit crtitcal
+  portEXIT_CRITICAL(0); //exit crtitcal
 
   if (save_addr_flag == 0)
   {
@@ -119,14 +119,14 @@ void DataSaveTask(void *pvParameters)
 
   for (;;)
   {
-    // osi_MsgQRead(&xQueue0, &xMsg, OSI_WAIT_FOREVER); //Wait Sensor Value Message
+    // osi_MsgQRead(&xQueue0, &xMsg, -1); //Wait Sensor Value Message
     xQueueReceive(xQueue0, &xMsg, portMAX_DELAY);
 
     osi_Read_UTCtime(utctime, sizeof(utctime)); //read time
 
     snprintf(fields, sizeof(fields), "field%d", xMsg.sensornum); //fields number
 
-    osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
+    xSemaphoreTake(xMutex3, -1); //cJSON Semaphore Take
 
     pJsonRoot = cJSON_CreateObject();
 
@@ -138,11 +138,11 @@ void DataSaveTask(void *pvParameters)
 
     cJSON_Delete(pJsonRoot); //delete cjson root
 
-    mem_copy(SaveBuffer, OutBuffer, SAVE_DATA_SIZE);
+    memcpy(SaveBuffer, OutBuffer, SAVE_DATA_SIZE);
 
-    mem_Free(OutBuffer);
+    free(OutBuffer);
 
-    osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
+    xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 
     if ((POST_NUM >= Memory_Max_Addr) || (WRITE_ADDR > Memory_Max_Addr) || (POST_ADDR > Memory_Max_Addr) || (DELETE_ADDR > Memory_Max_Addr))
     {
@@ -218,7 +218,8 @@ void DataSaveTask(void *pvParameters)
       }
       else //pointer variable wrong,need delete all sensor data
       {
-        osi_SyncObjSignalFromISR(&xBinary11); //start delete task
+        // osi_SyncObjSignalFromISR(&xBinary11); //start delete task
+        vTaskNotifyGiveFromISR(xBinary11, NULL);
       }
     }
   }

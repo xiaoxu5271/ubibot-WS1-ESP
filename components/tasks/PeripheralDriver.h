@@ -11,8 +11,8 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include "stdint.h"
-#include "stdbool.h"
+#include "freertos/FreeRTOS.h"
+#include "driver/gpio.h"
 
 #define USB_PIN 35
 

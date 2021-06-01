@@ -15,14 +15,18 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+
 #include "iic.h"
 #include "MsgType.h"
 #include "user_spi.h"
 
 #include "w25q128.h"
 
-extern OsiSyncObj_t xMutex1; //Used for SPI Lock
-extern OsiSyncObj_t xMutex5; //Used for Post_Data_Buffer Lock
+extern SemaphoreHandle_t xMutex1; //Used for SPI Lock
+extern SemaphoreHandle_t xMutex5; //Used for Post_Data_Buffer Lock
 
 extern char Post_Data_Buffer[4096];
 
@@ -172,7 +176,7 @@ short w25q_ReadData(uint32_t addr, char *buffer, uint8_t size, uint8_t *read_siz
 
   for (i = 0; i < size; i++)
   {
-    buffer[i] = SPI_SPI_Read(); //read one byte
+    buffer[i] = SPI_Read(); //read one byte
 
     if (buffer[i] == '!') //end with '!'
     {
@@ -328,7 +332,7 @@ static void w25q_Read_Data(uint32_t addr, char *buffer, uint16_t size)
 
   for (i = 0; i < size; i++)
   {
-    buffer[i] = SPI_SPI_Read(); //read one byte
+    buffer[i] = SPI_Read(); //read one byte
   }
 
   Flash_Spi_Stop(); //nor flash spi stop
@@ -387,11 +391,11 @@ void osi_w25q_Write_Addr_Check(unsigned long w_Addr)
 
   sec_remain = 4096 - sec_data;
 
-  osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+  xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
   w25q_Read_Data(w_Addr, read_buf, SAVE_DATA_SIZE); //read the data write area
 
-  osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+  xSemaphoreGive(xMutex1); //SPI Semaphore Give
 
   for (i = 0; i < SAVE_DATA_SIZE; i++)
   {
@@ -399,11 +403,11 @@ void osi_w25q_Write_Addr_Check(unsigned long w_Addr)
     {
       if (sec_data > 0)
       {
-        osi_SyncObjWait(&xMutex5, OSI_WAIT_FOREVER); //Post_Data_Buffer Semaphore Take
+        xSemaphoreTake(xMutex5, -1); //Post_Data_Buffer Semaphore Take
 
         memset(Post_Data_Buffer, '\0', sizeof(Post_Data_Buffer)); //clear the data buffer
 
-        osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+        xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
         w25q_Read_Data(sec_addr, Post_Data_Buffer, sec_data);
 
@@ -416,17 +420,17 @@ void osi_w25q_Write_Addr_Check(unsigned long w_Addr)
           w25q_EraseSubsector(sec_addr + 4096); //erase the subsector
         }
 
-        osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+        xSemaphoreGive(xMutex1); //SPI Semaphore Give
 
-        osi_SyncObjSignal(&xMutex5); //Post_Data_Buffer Semaphore Give
+        xSemaphoreGive(xMutex5); //Post_Data_Buffer Semaphore Give
       }
       else
       {
-        osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+        xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
         w25q_EraseSubsector(sec_addr); //erase the subsector
 
-        osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+        xSemaphoreGive(xMutex1); //SPI Semaphore Give
       }
 
       break;

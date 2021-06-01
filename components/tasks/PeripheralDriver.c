@@ -40,7 +40,7 @@
 #include "MsgType.h"
 #include "MagTask.h"
 #include "PeripheralDriver.h"
-#include "ht1621.h"
+// #include "ht1621.h"
 
 extern OsiMsgQ_t xQueue1;      //Used for LED control task
 extern OsiMsgQ_t xQueue2;      //Used for bell conctrol task
@@ -252,7 +252,7 @@ void Green_LedFlashed_Task(void *pvParameters)
 {
   for (;;)
   {
-    // osi_SyncObjWait(&xBinary17, OSI_WAIT_FOREVER); //Wait Internet Application Task Start Message
+    // osi_SyncObjWait(&xBinary17, -1); //Wait Internet Application Task Start Message
     ulTaskNotifyTake(pdTRUE, -1);
 
     while (POST_TASK_END_FLAG || UPDATETIME_TASK_END_FLAG || APIGET_TASK_END_FLAG)
@@ -284,7 +284,7 @@ void Green_LedControl_Task(void *pvParameters)
 
   for (;;)
   {
-    // osi_MsgQRead(&xQueue1, &led_t, OSI_WAIT_FOREVER); //Wait LED Value Message
+    // osi_MsgQRead(&xQueue1, &led_t, -1); //Wait LED Value Message
     xQueueReceive(xQueue1, &led_t, portMAX_DELAY);
 
     vTaskSuspendAll(); //disable the tasks
@@ -351,7 +351,7 @@ void Bell_Control_Task(void *pvParameters)
 
   for (;;)
   {
-    // osi_MsgQRead(&xQueue2, &bell_t, OSI_WAIT_FOREVER); //Wait BELL Value Message
+    // osi_MsgQRead(&xQueue2, &bell_t, -1); //Wait BELL Value Message
     xQueueReceive(xQueue2, &bell_t, portMAX_DELAY);
 
     osi_bell_makeSound(bell_t); //Bell make a sound,bell_t times
@@ -363,11 +363,11 @@ void Bell_Control_Task(void *pvParameters)
 *******************************************************************************/
 void osi_UartPrint(char *buffer)
 {
-  osi_SyncObjWait(&xMutex4, OSI_WAIT_FOREVER); //UART Semaphore Take
+  xSemaphoreTake(xMutex4, -1); //UART Semaphore Take
 
   printf("%s", buffer);
 
-  osi_SyncObjSignal(&xMutex4); //UART Semaphore Give
+  xSemaphoreGive(xMutex4); //UART Semaphore Give
 }
 
 /*******************************************************************************
@@ -375,13 +375,13 @@ void osi_UartPrint(char *buffer)
 *******************************************************************************/
 void osi_UartPrint_Mul(char *buffer1, char *buffer2)
 {
-  osi_SyncObjWait(&xMutex4, OSI_WAIT_FOREVER); //UART Semaphore Take
+  xSemaphoreTake(xMutex4, -1); //UART Semaphore Take
 
   printf("%s", buffer1);
 
   printf("%s", buffer2);
 
-  osi_SyncObjSignal(&xMutex4); //UART Semaphore Give
+  xSemaphoreGive(xMutex4); //UART Semaphore Give
 }
 
 /*******************************************************************************
@@ -389,13 +389,13 @@ void osi_UartPrint_Mul(char *buffer1, char *buffer2)
 *******************************************************************************/
 void osi_UartPrint_Val(char *buffer, unsigned long value)
 {
-  osi_SyncObjWait(&xMutex4, OSI_WAIT_FOREVER); //UART Semaphore Take
+  xSemaphoreTake(xMutex4, -1); //UART Semaphore Take
 
   printf("%s", buffer);
 
   printf("%d", value);
 
-  osi_SyncObjSignal(&xMutex4); //UART Semaphore Give
+  xSemaphoreGive(xMutex4); //UART Semaphore Give
 }
 
 /*******************************************************************************
@@ -1113,7 +1113,7 @@ void osi_Save_Data_Reset(void)
 
   osi_at24c08_save_addr(); //save post data amount/write data address/post data address/delete data address
 
-  osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+  xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
   if (flash_set_val != SUCCESS)
   {
@@ -1126,7 +1126,7 @@ void osi_Save_Data_Reset(void)
 
   w25q_WriteCommand(CHIP_ERASE); //chip eaase code
 
-  osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+  xSemaphoreGive(xMutex1); //SPI Semaphore Give
 
   while (reg_val & 0x01)
   {
@@ -1143,11 +1143,11 @@ void osi_Save_Data_Reset(void)
 
     MAP_UtilsDelay(6000000); //delay about 450ms
 
-    osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+    xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
     reg_val = w25q_ReadReg(READ_STATUS_REGISTER);
 
-    osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+    xSemaphoreGive(xMutex1); //SPI Semaphore Give
 
     sys_run_time = 0; //clear system time out
   }
@@ -1160,11 +1160,11 @@ short osi_w25q_ReadData(uint32_t addr, char *buffer, uint8_t size, uint8_t *read
 {
   short retVal;
 
-  osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+  xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
   retVal = w25q_ReadData(addr, buffer, size, read_size);
 
-  osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+  xSemaphoreGive(xMutex1); //SPI Semaphore Give
 
   return retVal;
 }
@@ -1318,7 +1318,7 @@ void osi_OPT3001_value(float *lightvalue)
 void osi_ADXL345_RD_xyz(short *x_val, short *y_val, short *z_val)
 {
 #ifdef ADXL345_SPI
-  osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+  xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
   if (Adxl345_Check_Id() < 0)
   {
     *x_val = ERROR_CODE;
@@ -1329,7 +1329,7 @@ void osi_ADXL345_RD_xyz(short *x_val, short *y_val, short *z_val)
   {
     ADXL345_RD_xyz(x_val, y_val, z_val); //read three Axis data
   }
-  osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+  xSemaphoreGive(xMutex1); //SPI Semaphore Give
 #endif
 #ifdef ADXL345_IIC
   vTaskSuspendAll(); //disable the tasks

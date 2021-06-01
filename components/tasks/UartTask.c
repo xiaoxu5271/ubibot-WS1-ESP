@@ -11,20 +11,15 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include "stdlib.h"
-#include "osi.h"
-#include "string.h"
-#include "stdint.h"
-#include "stdint.h"
-#include "stdbool.h"
-#include "stdio.h"
-#include "hw_types.h"
-#include "hw_memmap.h"
-#include "rom_map.h"
-#include "gpio.h"
-#include "uart.h"
-#include "uart_if.h"
-#include "common.h"
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/gpio.h"
+#include "driver/uart.h"
+
 #include "sht30dis.h"
 #include "opt3001.h"
 #include "at24c08.h"
@@ -99,12 +94,12 @@ static void UartReadData(unsigned long addr)
 
   save_data_num = POST_NUM;
 
-  // osi_SyncObjWait(&xMutex4, OSI_WAIT_FOREVER); //UART Semaphore Take
+  //  xSemaphoreTake(xMutex4, -1); //UART Semaphore Take
   xSemaphoreTake(xMutex4, -1);
 
   printf("{\"save_data_sum\":%d}\r\n", save_data_num);
 
-  // osi_SyncObjSignal(&xMutex4); //UART Semaphore Give
+  //  xSemaphoreGive(xMutex4); //UART Semaphore Give
   xSemaphoreGive(xMutex4);
 
   while (save_data_num--)
@@ -128,9 +123,9 @@ static void UartReadData(unsigned long addr)
 //
 //  for(;;)
 //  {
-//    osi_SyncObjWait(&xBinary10,OSI_WAIT_FOREVER);  //waite UART0 interrupt message
+//    osi_SyncObjWait(&xBinary10,-1);  //waite UART0 interrupt message
 //
-//    osi_SyncObjWait(&xMutex4,OSI_WAIT_FOREVER);  //UART Semaphore Take
+//     xSemaphoreTake(xMutex4,-1);  //UART Semaphore Take
 //
 //    while(UARTCharsAvail(UARTA0_BASE))
 //    {
@@ -156,7 +151,7 @@ static void UartReadData(unsigned long addr)
 //      }
 //    }
 //
-//    osi_SyncObjSignal(&xMutex4);  //UART Semaphore Give
+//     xSemaphoreGive(xMutex4);  //UART Semaphore Give
 //  }
 //}
 
@@ -221,9 +216,9 @@ void UartParseTask(void *pvParameters)
               {
                 xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 9, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task
                 set_val = osi_WiFi_Connect_Test();
-                osi_TaskDelete(&GR_LED_FAST_TaskHandle); //delete Green and Red Led Fast Flash Task
-                SET_RED_LED_OFF();                       //Set Red Led Off
-                SET_GREEN_LED_OFF();                     //Set Green Led Off
+                vTaskDelete(GR_LED_FAST_TaskHandle); //delete Green and Red Led Fast Flash Task
+                SET_RED_LED_OFF();                   //Set Red Led Off
+                SET_GREEN_LED_OFF();                 //Set Green Led Off
                 osi_bell_makeSound(200);
                 if (set_val < 0)
                 {

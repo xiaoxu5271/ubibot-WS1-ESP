@@ -11,15 +11,14 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include "stdint.h"
-#include "stdbool.h"
-#include <stdlib.h>
-#include "osi.h"
-#include "hw_types.h"
-#include "hw_memmap.h"
-#include "rom_map.h"
-#include "gpio.h"
-#include "utils.h"
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#include "driver/gpio.h"
+
 #include "w25q128.h"
 #include "at24c08.h"
 #include "MsgType.h"
@@ -28,25 +27,25 @@
 extern volatile uint8_t save_addr_flag;
 extern volatile unsigned long POST_NUM;
 extern volatile unsigned long DELETE_ADDR, POST_ADDR, WRITE_ADDR;
-extern OsiSyncObj_t xMutex1;   //Used for SPI Lock
-extern OsiSyncObj_t xBinary11; //For Memory Delete Task
+extern SemaphoreHandle_t xMutex1; //Used for SPI Lock
+extern TaskHandle_t xBinary11;    //For Memory Delete Task
 
 /*******************************************************************************
 //Erase Flash 4k memory
 *******************************************************************************/
 static void N25q_EraseMemory(unsigned long addr)
 {
-  osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+  xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
   w25q_EraseSubsector(addr); //erase the subsector
 
-  osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+  xSemaphoreGive(xMutex1); //SPI Semaphore Give
 
-  osi_EnterCritical(); //enter critical
+  portENTER_CRITICAL(0); //enter critical
 
   DELETE_ADDR += 4096;
 
-  osi_ExitCritical(0); //exit critical
+  portEXIT_CRITICAL(0); //exit critical
 
   if (DELETE_ADDR >= Memory_Max_Addr)
   {
@@ -129,7 +128,7 @@ void Memory_DeleteTask(void *pvParameters)
 {
   for (;;)
   {
-    // osi_SyncObjWait(&xBinary11,OSI_WAIT_FOREVER);  //wait task start message
+    // osi_SyncObjWait(&xBinary11,-1);  //wait task start message
     ulTaskNotifyTake(pdTRUE, -1);
 
     osi_Erase_Memory(); //Erase memory

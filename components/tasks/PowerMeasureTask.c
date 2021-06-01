@@ -11,90 +11,59 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include <stdlib.h>
-#include "osi.h"
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "driver/gpio.h"
+#include "driver/adc.h"
+#include "esp_adc_cal.h"
+
 #include "MsgType.h"
-#include "hw_types.h"
-#include "rom_map.h"
-#include "utils.h"
-#include "adc.h"
-#include "hw_memmap.h"
-#include "gpio_hal.h"
-#include "pin.h"
 #include "at24c08.h"
 #include "PeripheralDriver.h"
 
-#define USB_PORT GPIOA0_BASE
-#define USB_PIN GPIO_PIN_4
-
-extern OsiSyncObj_t xBinary7; //For Power Measure Task
-extern OsiMsgQ_t xQueue0;     //Used for cjson and memory save
+extern TaskHandle_t xBinary7; //For Power Measure Task
+extern QueueHandle_t xQueue0; //Used for cjson and memory save
 
 extern float f4_a, f4_b;
+
+#define ADC1_TEST_CHANNEL (6)
+#define DEFAULT_VREF 1100 //Use adc2_vref_to_gpio() to obtain a better estimate
+#define NO_OF_SAMPLES 64  //Multisampling
+
+static esp_adc_cal_characteristics_t *adc_chars;
+static const adc_channel_t channel = ADC_CHANNEL_6; //GPIO34 if ADC1, GPIO14 if ADC2
+static const adc_atten_t atten = ADC_ATTEN_DB_11;   //ADC_ATTEN_DB_11;
+static const adc_unit_t unit = ADC_UNIT_1;
 
 /*******************************************************************************
 //power voltage value
 *******************************************************************************/
 float power_adcValue(void)
 {
-  uint8_t i = 0;
-  float p_val = 0;
-  float p_value;
-  uint8_t uiIndex = 0;
-  uint32_t ulSample;
-  uint32_t pulAdcSamples[10];
-  uint8_t err_num = 0;
+  float adc_reading = 0, adc_reading_2 = 0;
+  float value_1 = 0;
+  // initialize ADC
+  adc1_config_width(ADC_WIDTH_BIT_12);
+  adc1_config_channel_atten(channel, atten);
 
-  MAP_PinTypeADC(PIN_60, PIN_MODE_255); //adc in mode
+  adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
+  esp_adc_cal_value_t val_type = esp_adc_cal_characterize(unit, atten, ADC_WIDTH_BIT_10, DEFAULT_VREF, adc_chars);
+  print_char_val_type(val_type);
 
-  MAP_ADCTimerConfig(ADC_BASE, 2 ^ 17); //Configure ADC timer
-
-  MAP_ADCTimerEnable(ADC_BASE); //Enable ADC timer
-
-  MAP_ADCEnable(ADC_BASE); //Enable ADC module
-
-  MAP_ADCChannelEnable(ADC_BASE, ADC_CH_3); //Enable ADC channel
-
-  while (uiIndex < 10)
+  for (int i = 0; i < NO_OF_SAMPLES; i++)
   {
-    if (MAP_ADCFIFOLvlGet(ADC_BASE, ADC_CH_3))
-    {
-      ulSample = MAP_ADCFIFORead(ADC_BASE, ADC_CH_3);
-
-      pulAdcSamples[uiIndex++] = ulSample;
-    }
-    if (err_num++ == 0xff)
-    {
-      break;
-    }
+    adc_reading += adc1_get_raw((adc1_channel_t)channel);
   }
+  adc_reading /= NO_OF_SAMPLES;
+  //Convert adc_reading to voltage in mV
+  float voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars);
 
-  MAP_ADCChannelDisable(ADC_BASE, ADC_CH_3); //disable the adc channel
-
-  uiIndex = 0;
-
-  while (uiIndex < 5)
-  {
-    p_value = ((float)((pulAdcSamples[5 + uiIndex] >> 2) & 0x0FFF)) * 1.467 / 4096;
-
-    uiIndex++;
-
-    if ((p_value <= 1.467) && (p_value > 0))
-    {
-      p_val += p_value;
-
-      i++;
-    }
-  }
-
-  if (i)
-  {
-    return 3.7 * p_val / i;
-  }
-  else
-  {
-    return 0;
-  }
+  return voltage;
 }
 
 /*******************************************************************************
@@ -108,7 +77,7 @@ void PowerMeasureTask(void *pvParameters)
 
   for (;;)
   {
-    // osi_SyncObjWait(&xBinary7,OSI_WAIT_FOREVER);  //Wait Timer Interrupt Message
+    // osi_SyncObjWait(&xBinary7,-1);  //Wait Timer Interrupt Message
     ulTaskNotifyTake(pdTRUE, -1);
 
     for (err_val = 0; err_val < 3; err_val++)
@@ -119,10 +88,10 @@ void PowerMeasureTask(void *pvParameters)
       {
         if (p_value <= 4.2)
         {
-          if (!(GPIOPinRead(USB_PORT, USB_PIN)))
+          if (!(gpio_get_level(USB_PIN)))
           {
             MAP_UtilsDelay(100000); //Delay About 7.5ms
-            if (!(GPIOPinRead(USB_PORT, USB_PIN)))
+            if (!(gpio_get_level(USB_PIN)))
             {
               break;
             }
@@ -130,11 +99,11 @@ void PowerMeasureTask(void *pvParameters)
         }
         else if (p_value >= 4.2)
         {
-          if (GPIOPinRead(USB_PORT, USB_PIN))
+          if (gpio_get_level(USB_PIN))
           {
             MAP_UtilsDelay(100000); //Delay About 7.5ms
 
-            if (GPIOPinRead(USB_PORT, USB_PIN))
+            if (gpio_get_level(USB_PIN))
             {
               p_value = 5;
 
@@ -162,9 +131,9 @@ void PowerMeasureTask(void *pvParameters)
     }
 #endif
 
-    pMsg.sensornum = BAT_NUM;                    //Message Number
-    pMsg.sensorval = f4_a * p_value + f4_b;      //Message Value
-    osi_MsgQWrite(&xQueue0, &pMsg, OSI_NO_WAIT); //send power data message
+    pMsg.sensornum = BAT_NUM;               //Message Number
+    pMsg.sensorval = f4_a * p_value + f4_b; //Message Value
+    xQueueSend(xQueue0, &pMsg, 0);          //send power data message
   }
 }
 

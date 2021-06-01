@@ -11,6 +11,9 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
+
+#include <stdio.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
@@ -106,37 +109,6 @@ void UserSpiInit(void)
   gpio_config(&io_conf);
 
   VprocHALInit();
-}
-
-/*******************************************************************************
-//spi send and recive a byte
-*******************************************************************************/
-uint8_t SPI_SendReciveByte(uint8_t addr)
-{
-  uint8_t retry = 0;
-
-  //Wait for space in FIFO
-  while (!(HWREG(GSPI_BASE + MCSPI_O_CH0STAT) & MCSPI_CH0STAT_TXS))
-  {
-    if (retry++ > 200)
-    {
-      break;
-    }
-  }
-
-  retry = 0;
-
-  HWREG(GSPI_BASE + MCSPI_O_TX0) = addr; //Write the data
-
-  //Wait for Rx data
-  while (!(HWREG(GSPI_BASE + MCSPI_O_CH0STAT) & MCSPI_CH0STAT_RXS))
-  {
-    if (retry++ > 220)
-    {
-      break;
-    }
-  }
-  return (uint8_t)HWREG(GSPI_BASE + MCSPI_O_RX0); //Read the value
 }
 
 /* This is the platform dependent low level spi

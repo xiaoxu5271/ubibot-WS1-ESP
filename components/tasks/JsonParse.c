@@ -11,16 +11,16 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
-#include "stdlib.h"
-#include "stdio.h"
-#include "osi.h"
-#include "stdint.h"
-#include "string.h"
-#include "stdbool.h"
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
 #include "cJSON.h"
-#include "common.h"
-#include "rom_map.h"
-#include "utils.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
+#include "driver/gpio.h"
+
 #include "PCF8563.h"
 #include "at24c08.h"
 #include "MsgType.h"
@@ -30,8 +30,6 @@
 #include "HttpClientTask.h"
 #include "MagTask.h"
 #include "w25q128.h"
-#include "hw_types.h"
-#include "hw_memmap.h"
 
 extern uint8_t HOST_IP[4];
 extern char SEC_TYPE[8];
@@ -40,12 +38,12 @@ extern char PASS_WORD[64];
 extern char HOST_NAME[64];
 char ProductURI[128];
 
-extern OsiMsgQ_t xQueue1;    //Used for LED control task
-extern OsiMsgQ_t xQueue2;    //Used for bell conctrol task
-extern OsiSyncObj_t xMutex1; //Used for SPI Lock
-extern OsiSyncObj_t xMutex2; //Used for SimpleLink Lock
-extern OsiSyncObj_t xMutex3; //Used for cJSON Lock
-extern OsiSyncObj_t xBinary9;
+extern QueueHandle_t xQueue1;     //Used for LED control task
+extern QueueHandle_t xQueue2;     //Used for bell conctrol task
+extern SemaphoreHandle_t xMutex1; //Used for SPI Lock
+extern SemaphoreHandle_t xMutex2; //Used for SimpleLink Lock
+extern SemaphoreHandle_t xMutex3; //Used for cJSON Lock
+extern TaskHandle_t xBinary9;
 
 #ifdef MAG_SENSOR
 extern volatile uint8_t fn_mag_int;             //0:no data save,1:save data,2:save data and post
@@ -448,7 +446,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f1_a:%f\r\n", pSub->valuedouble);
+    printf("f1_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f1_a != (float)pSub->valuedouble)
     {
@@ -461,7 +459,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f1_b:%f\r\n", pSub->valuedouble);
+    printf("f1_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f1_b != (float)pSub->valuedouble)
     {
@@ -475,7 +473,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f2_a:%f\r\n", pSub->valuedouble);
+    printf("f2_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f2_a != (float)pSub->valuedouble)
     {
@@ -488,7 +486,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f2_b:%f\r\n", pSub->valuedouble);
+    printf("f2_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f2_b != (float)pSub->valuedouble)
     {
@@ -502,7 +500,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f3_a:%f\r\n", pSub->valuedouble);
+    printf("f3_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f3_a != (float)pSub->valuedouble)
     {
@@ -515,7 +513,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f3_b:%f\r\n", pSub->valuedouble);
+    printf("f3_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f3_b != (float)pSub->valuedouble)
     {
@@ -529,7 +527,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f4_a:%f\r\n", pSub->valuedouble);
+    printf("f4_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f4_a != (float)pSub->valuedouble)
     {
@@ -542,7 +540,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f4_b:%f\r\n", pSub->valuedouble);
+    printf("f4_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f4_b != (float)pSub->valuedouble)
     {
@@ -556,7 +554,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f5_a:%f\r\n", pSub->valuedouble);
+    printf("f5_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f5_a != (float)pSub->valuedouble)
     {
@@ -569,7 +567,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f5_b:%f\r\n", pSub->valuedouble);
+    printf("f5_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f5_b != (float)pSub->valuedouble)
     {
@@ -583,7 +581,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f6_a:%f\r\n", pSub->valuedouble);
+    printf("f6_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f6_a != (float)pSub->valuedouble)
     {
@@ -596,7 +594,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f6_b:%f\r\n", pSub->valuedouble);
+    printf("f6_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f6_b != (float)pSub->valuedouble)
     {
@@ -610,7 +608,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f7_a:%f\r\n", pSub->valuedouble);
+    printf("f7_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f7_a != (float)pSub->valuedouble)
     {
@@ -623,7 +621,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f7_b:%f\r\n", pSub->valuedouble);
+    printf("f7_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f7_b != (float)pSub->valuedouble)
     {
@@ -637,7 +635,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f8_a:%f\r\n", pSub->valuedouble);
+    printf("f8_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f8_a != (float)pSub->valuedouble)
     {
@@ -650,7 +648,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f8_b:%f\r\n", pSub->valuedouble);
+    printf("f8_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f8_b != (float)pSub->valuedouble)
     {
@@ -664,7 +662,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f9_a:%f\r\n", pSub->valuedouble);
+    printf("f9_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f9_a != (float)pSub->valuedouble)
     {
@@ -677,7 +675,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f9_b:%f\r\n", pSub->valuedouble);
+    printf("f9_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f9_b != (float)pSub->valuedouble)
     {
@@ -691,7 +689,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f10_a:%f\r\n", pSub->valuedouble);
+    printf("f10_a:%f\r\n", pSub->valuedouble);
 #endif
     if (f10_a != (float)pSub->valuedouble)
     {
@@ -704,7 +702,7 @@ static short Parse_cali(char *ptr)
   if (NULL != pSub)
   {
 #ifdef DEBUG_RESPONSE
-    UART_PRINT("f10_b:%f\r\n", pSub->valuedouble);
+    printf("f10_b:%f\r\n", pSub->valuedouble);
 #endif
     if (f10_b != (float)pSub->valuedouble)
     {
@@ -744,7 +742,7 @@ static char Parse_commands(char *ptr)
     osi_UartPrint_Val("\"cm_led\":", pSub->valueint);
 #endif
 
-    osi_MsgQWrite(&xQueue1, &pSub->valueint, OSI_NO_WAIT); //send led control message
+    xQueueSend(xQueue1, &pSub->valueint, 0); //send led control message
   }
 
   pSub = cJSON_GetObjectItem(pJson, "cm_buzzer"); //"cm_buzzer"
@@ -756,7 +754,7 @@ static char Parse_commands(char *ptr)
 
 #endif
 
-    osi_MsgQWrite(&xQueue2, &pSub->valueint, OSI_NO_WAIT); //send bell control message
+    xQueueSend(xQueue2, &pSub->valueint, 0); //send bell control message
   }
 
   pSub = cJSON_GetObjectItem(pJson, "cm_power_off"); //"cm_power_off"
@@ -788,7 +786,7 @@ static char Parse_commands(char *ptr)
 
         if (sizeof(SSID_NAME) >= strlen(pSub->valuestring))
         {
-          osi_at24c08_WriteData(SSID_FLAG_ADDR, "SSID", strlen("SSID"), 1); //save ssid flag to at24c08
+          osi_at24c08_WriteData(SSID_FLAG_ADDR, (uint8_t *)"SSID", strlen("SSID"), 1); //save ssid flag to at24c08
           osi_at24c08_write_byte(SSID_LEN_ADDR, strlen(pSub->valuestring));
           osi_at24c08_WriteData(SSID_ADDR, (uint8_t *)pSub->valuestring, strlen(pSub->valuestring), 0); //save ssid
         }
@@ -1428,7 +1426,7 @@ void Read_Product_Set(char *read_buf, uint16_t data_len)
 
   osi_at24c08_ReadData(USER_ID_ADDR, (uint8_t *)user_id, sizeof(user_id), 1);
 
-  osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
+  xSemaphoreTake(xMutex3, -1); //cJSON Semaphore Take
 
   pJsonRoot = cJSON_CreateObject();
 
@@ -1446,7 +1444,7 @@ void Read_Product_Set(char *read_buf, uint16_t data_len)
 
   use_age = Get_Usage_Val();
 
-  snprintf(useage, sizeof(useage), "%d%\0", use_age);
+  snprintf(useage, sizeof(useage), "%d%%", use_age);
 
   cJSON_AddStringToObject(pJsonRoot, "USAGE", useage);
 
@@ -1462,11 +1460,11 @@ void Read_Product_Set(char *read_buf, uint16_t data_len)
 
   cJSON_Delete(pJsonRoot); //delete cjson root
 
-  mem_copy(read_buf, out_buf, data_len);
+  memcpy(read_buf, out_buf, data_len);
 
   mem_Free(out_buf);
 
-  osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
+  xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
 
 /*******************************************************************************
@@ -1478,9 +1476,9 @@ void Read_Wifi_Set(char *read_buf, uint16_t data_len)
   char *out_buf;
   cJSON *pJsonRoot;
 
-  mem_set(SSID_NAME, 0, sizeof(SSID_NAME));
+  memset(SSID_NAME, 0, sizeof(SSID_NAME));
 
-  mem_set(PASS_WORD, 0, sizeof(PASS_WORD));
+  memset(PASS_WORD, 0, sizeof(PASS_WORD));
 
   read_len = osi_at24c08_read_byte(SSID_LEN_ADDR);
 
@@ -1501,7 +1499,7 @@ void Read_Wifi_Set(char *read_buf, uint16_t data_len)
 
   osi_at24c08_ReadData(SECTYPE_ADDR, (uint8_t *)SEC_TYPE, sizeof(SEC_TYPE), 1);
 
-  osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
+  xSemaphoreTake(xMutex3, -1); //cJSON Semaphore Take
 
   pJsonRoot = cJSON_CreateObject();
 
@@ -1528,23 +1526,23 @@ void Read_Wifi_Set(char *read_buf, uint16_t data_len)
 
   cJSON_AddNumberToObject(pJsonRoot, "dhcp", dhcp_mode);
 
-  mem_set(set_buf, 0, sizeof(set_buf));
+  memset(set_buf, 0, sizeof(set_buf));
   snprintf((char *)set_buf, sizeof(set_buf), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
   cJSON_AddStringToObject(pJsonRoot, "ip", (char *)set_buf);
 
-  mem_set(set_buf, 0, sizeof(set_buf));
+  memset(set_buf, 0, sizeof(set_buf));
   snprintf((char *)set_buf, sizeof(set_buf), "%d.%d.%d.%d", sn[0], sn[1], sn[2], sn[3]);
   cJSON_AddStringToObject(pJsonRoot, "mask", (char *)set_buf);
 
-  mem_set(set_buf, 0, sizeof(set_buf));
+  memset(set_buf, 0, sizeof(set_buf));
   snprintf((char *)set_buf, sizeof(set_buf), "%d.%d.%d.%d", gw[0], gw[1], gw[2], gw[3]);
   cJSON_AddStringToObject(pJsonRoot, "gw", (char *)set_buf);
 
-  mem_set(set_buf, 0, sizeof(set_buf));
+  memset(set_buf, 0, sizeof(set_buf));
   snprintf((char *)set_buf, sizeof(set_buf), "%d.%d.%d.%d", dns[0], dns[1], dns[2], dns[3]);
   cJSON_AddStringToObject(pJsonRoot, "dns1", (char *)set_buf);
 
-  //  mem_set(set_buf,0,sizeof(set_buf));
+  //  memset(set_buf,0,sizeof(set_buf));
   //  snprintf((char *)set_buf,sizeof(set_buf),"%d.%d.%d.%d",sdns[0],sdns[1],sdns[2],sdns[3]);
   //  cJSON_AddStringToObject(pJsonRoot,"dns2",(char *)set_buf);
 
@@ -1552,11 +1550,11 @@ void Read_Wifi_Set(char *read_buf, uint16_t data_len)
 
   cJSON_Delete(pJsonRoot); //delete cjson root
 
-  mem_copy(read_buf, out_buf, data_len);
+  memcpy(read_buf, out_buf, data_len);
 
   mem_Free(out_buf);
 
-  osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
+  xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
 
 /*******************************************************************************
@@ -1569,7 +1567,7 @@ void Cmd_Read_MetaData(char *read_buf, uint16_t data_len)
 
   osi_MetaData_Read();
 
-  osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
+  xSemaphoreTake(xMutex3, -1); //cJSON Semaphore Take
 
   pJsonRoot = cJSON_CreateObject();
 
@@ -1607,11 +1605,11 @@ void Cmd_Read_MetaData(char *read_buf, uint16_t data_len)
 
   cJSON_Delete(pJsonRoot); //delete cjson root
 
-  mem_copy(read_buf, out_buf, data_len);
+  memcpy(read_buf, out_buf, data_len);
 
   mem_Free(out_buf);
 
-  osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
+  xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
 
 /*******************************************************************************
@@ -1631,16 +1629,16 @@ void Cmd_System_TestData(char *read_buf, uint16_t data_len)
 
   if (flash_set_val != SUCCESS)
   {
-    osi_SyncObjWait(&xMutex1, OSI_WAIT_FOREVER); //SPI Semaphore Take
+    xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
     flash_set_val = w25q_Init();
 
-    osi_SyncObjSignal(&xMutex1); //SPI Semaphore Give
+    xSemaphoreGive(xMutex1); //SPI Semaphore Give
   }
 
   osi_Scan_Wifi_List(rssi_ssid, &rssi_val, 0); //Scan WIFI LIST with locked
 
-  osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
+  xSemaphoreTake(xMutex3, -1); //cJSON Semaphore Take
 
   pJsonRoot = cJSON_CreateObject();
 
@@ -1696,11 +1694,11 @@ void Cmd_System_TestData(char *read_buf, uint16_t data_len)
 
   cJSON_Delete(pJsonRoot); //delete cjson root
 
-  mem_copy(read_buf, out_buf, data_len);
+  memcpy(read_buf, out_buf, data_len);
 
   mem_Free(out_buf);
 
-  osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
+  xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
 
 /******************************************************************************
@@ -1875,12 +1873,12 @@ int ParseTcpUartCmd(char *pcCmdBuffer)
         }
         else if ((!APIGET_TASK_END_FLAG) && (!UPDATETIME_TASK_END_FLAG) && (!POST_TASK_END_FLAG))
         {
-          osi_SyncObjWait(&xMutex2, OSI_WAIT_FOREVER); //SimpleLink Semaphore Take
-          sl_Start(0, 0, 0);                           //start the simple link
+          xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
+          sl_Start(0, 0, 0);           //start the simple link
           sl_NetCfgSet(SL_MAC_ADDRESS_SET, 1, SL_MAC_ADDR_LEN, mac_addr);
-          sl_Stop(SL_STOP_TIMEOUT);    //stop the simple link
-          MAP_UtilsDelay(80000);       //delay about 6ms
-          osi_SyncObjSignal(&xMutex2); //SimpleLink Semaphore Give
+          sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
+          MAP_UtilsDelay(80000);    //delay about 6ms
+          xSemaphoreGive(xMutex2);  //SimpleLink Semaphore Give
         }
         else
         {
@@ -2257,7 +2255,7 @@ void Read_System_ERROR_Code(char *read_buf, uint16_t data_len)
   cJSON *pJsonRoot;
   unsigned long err_time;
 
-  osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
+  xSemaphoreTake(xMutex3, -1); //cJSON Semaphore Take
 
   pJsonRoot = cJSON_CreateObject();
 
@@ -2374,11 +2372,11 @@ void Read_System_ERROR_Code(char *read_buf, uint16_t data_len)
 
   cJSON_Delete(pJsonRoot); //delete cjson root
 
-  mem_copy(read_buf, out_buf, data_len);
+  memcpy(read_buf, out_buf, data_len);
 
   mem_Free(out_buf);
 
-  osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
+  xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
 
 /*******************************************************************************
@@ -2390,7 +2388,7 @@ void Web_Wifi_Set(char *read_buf, uint8_t data_len, char *WiFi_ssid, short WiFi_
   cJSON *pJsonRoot;
   char mac_buf[18] = {0};
 
-  osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
+  xSemaphoreTake(xMutex3, -1); //cJSON Semaphore Take
 
   pJsonRoot = cJSON_CreateObject();
 
@@ -2411,11 +2409,11 @@ void Web_Wifi_Set(char *read_buf, uint8_t data_len, char *WiFi_ssid, short WiFi_
 
   cJSON_Delete(pJsonRoot); //delete cjson root
 
-  mem_copy(read_buf, out_buf, data_len);
+  memcpy(read_buf, out_buf, data_len);
 
   mem_Free(out_buf);
 
-  osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
+  xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
 
 /*******************************************************************************
@@ -2490,7 +2488,7 @@ void Read_cali(char *read_buf, uint16_t data_len)
 {
   char *out_buf;
   cJSON *pJsonRoot;
-  osi_SyncObjWait(&xMutex3, OSI_WAIT_FOREVER); //cJSON Semaphore Take
+  xSemaphoreTake(xMutex3, -1); //cJSON Semaphore Take
   pJsonRoot = cJSON_CreateObject();
 
   cJSON_AddNumberToObject(pJsonRoot, "f1_a", f1_a); //f1_a
@@ -2525,9 +2523,9 @@ void Read_cali(char *read_buf, uint16_t data_len)
 
   out_buf = cJSON_PrintUnformatted(pJsonRoot); //cJSON_Print(Root)
   cJSON_Delete(pJsonRoot);                     //delete cjson root
-  mem_copy(read_buf, out_buf, data_len);
+  memcpy(read_buf, out_buf, data_len);
   mem_Free(out_buf);
-  osi_SyncObjSignal(&xMutex3); //cJSON Semaphore Give
+  xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
 
 /*******************************************************************************

@@ -208,7 +208,7 @@ void at24c08_WriteData(uint16_t addr, uint8_t *buf, uint8_t size, bool end_flag)
 
   if (end_flag)
   {
-    at24c08_WritePage(addr, "!", 1); //end flag '!'
+    at24c08_WritePage(addr, (uint8_t *)"!", 1); //end flag '!'
   }
 }
 
