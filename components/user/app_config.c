@@ -153,13 +153,13 @@ void init_wifi(void) //
     // ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &s_staconf));
 
     // xEventGroupSetBits(Net_sta_group, WIFI_S_BIT);
-    start_user_wifi();
+    // start_user_wifi();
     osi_at24c08_ReadData(SERISE_NUM_ADDR, (uint8_t *)series_number, sizeof(series_number), 1);
-    strncpy(temp, series_number, 5);
+    memcpy(temp, series_number, 5);
     snprintf(AP_SSID, 15, "Ubibot-%s", temp);
     ESP_LOGI(TAG, "AP_SSID:%s", AP_SSID);
     //创建TCP监听端口 ，常开
-    // xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 7, NULL);
+    // my_xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 7, NULL);
 }
 
 void stop_user_wifi(void)
@@ -770,9 +770,10 @@ void WlanAPMode(void *pvParameters)
     AP_MODE_END_FLAG = 1;
 
     // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
-    vTaskNotifyGiveFromISR(xBinary13, NULL);
+    if (xBinary13 != NULL)
+        vTaskNotifyGiveFromISR(xBinary13, NULL);
 
-    xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
+    my_xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
 
     //  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
     xSemaphoreTake(xMutex2, -1);
@@ -935,10 +936,10 @@ void WlanAPMode(void *pvParameters)
                 else if (lRetVal == 10) //Command:ClearData
                 {
                     Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-                    vTaskDelete(GR_LED_TaskHandle);                                                                        //delete Green and Red Led Flash Task
-                    SET_GREEN_LED_OFF();                                                                                   //Set Green Led Off
-                    osi_Save_Data_Reset();                                                                                 //Nor Flash Memory Chip Reset
-                    xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
+                    vTaskDelete(GR_LED_TaskHandle);                                                                           //delete Green and Red Led Flash Task
+                    SET_GREEN_LED_OFF();                                                                                      //Set Green Led Off
+                    osi_Save_Data_Reset();                                                                                    //Nor Flash Memory Chip Reset
+                    my_xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
                 }
             }
             sys_run_time = 0; //clear system time out
@@ -964,11 +965,11 @@ CLEAN_UP:
     if ((lRetVal == 1) || (AP_MODE_END))
     {
         osi_bell_makeSound(200);
-        xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 7, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task
-        lRetVal = WiFi_Connect_Test();                                                                                        //wlan connect test
-        vTaskDelete(GR_LED_FAST_TaskHandle);                                                                                  //delete Green and Red Led Fast Flash Task
-        SET_GREEN_LED_OFF();                                                                                                  //Set Green Led Off
-        SET_RED_LED_OFF();                                                                                                    //Set Red Led Off
+        my_xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 7, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task
+        lRetVal = WiFi_Connect_Test();                                                                                           //wlan connect test
+        vTaskDelete(GR_LED_FAST_TaskHandle);                                                                                     //delete Green and Red Led Fast Flash Task
+        SET_GREEN_LED_OFF();                                                                                                     //Set Green Led Off
+        SET_RED_LED_OFF();                                                                                                       //Set Red Led Off
         osi_bell_makeSound(200);
 
         if (lRetVal < 0)
@@ -984,11 +985,11 @@ CLEAN_UP:
     osi_at24c08_ReadData(DATAURI_FLAG_ADDR, (uint8_t *)Readflag, sizeof(Readflag), 1); //read datapost addr
     if (!strcmp((char const *)Readflag, DATA_URI))                                     //check datapost addr
     {
-        xTaskCreate(UpdateTimeTask, "UpdateTimeTask", 1024, NULL, 7, NULL); //Create UpdataTime Task
+        my_xTaskCreate(UpdateTimeTask, "UpdateTimeTask", 1024, NULL, 7, NULL); //Create UpdataTime Task
     }
     else
     {
-        xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
+        my_xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
     }
 
     xSemaphoreGive(xMutex2); //SimpleLink Semaphore Give

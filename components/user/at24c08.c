@@ -11,6 +11,7 @@
 *******************************************************************************/
 
 /*-------------------------------- Includes ----------------------------------*/
+#include <string.h>
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "driver/i2c.h"
@@ -21,6 +22,8 @@
 // #include "common.h"
 #include "crc_8_check.h"
 #include "at24c08.h"
+
+#define TAG "at24c08"
 /*******************************************************************************
 //check two data buffer same or not
 *******************************************************************************/
@@ -159,7 +162,7 @@ static void at24c08_WritePage(uint16_t reg_addr, uint8_t *buffer, uint8_t buf_le
 {
   MulTry_I2C_WR_mulReg(at24c08_addr0 + reg_addr / 256, reg_addr % 256, buffer, buf_len); //iic multi write
 
-  MAP_UtilsDelay(67500); //delay about 5ms
+  MAP_UtilsDelay(80000); //delay about 5ms
 }
 
 /******************************************************************************
@@ -208,7 +211,10 @@ void at24c08_WriteData(uint16_t addr, uint8_t *buf, uint8_t size, bool end_flag)
 
   if (end_flag)
   {
-    at24c08_WritePage(addr, (uint8_t *)"!", 1); //end flag '!'
+    // ESP_LOGI(TAG, "%d", __LINE__);
+    // at24c08_WritePage(addr, (uint8_t *)"!\0", 2); //end flag '!'
+    at24c08_write_byte(addr, (uint8_t)'!');
+    ESP_LOGI(TAG, "%d,%c", __LINE__, at24c08_read_byte(addr));
   }
 }
 
@@ -219,82 +225,47 @@ static short I2C_ReadAt24c08(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, u
 {
   uint8_t i;
 
-  // IIC_Start();
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   i2c_master_start(cmd);
-
-  // IIC_Send_Byte(2 * sla_addr); //send write command
-
-  // if (IIC_Wait_Ack() < 0) //wait device ack
-  // {
-  //   IIC_Stop(); //IIC stop
-
-  //   return FAILURE;
-  // }
   i2c_master_write_byte(cmd, 2 * sla_addr, ACK_CHECK_EN);
-
-  // IIC_Send_Byte(reg_addr); //send register address
-
-  // if (IIC_Wait_Ack() < 0) //wait device ack
-  // {
-  //   IIC_Stop(); //IIC stop
-
-  //   return FAILURE;
-  // }
   i2c_master_write_byte(cmd, reg_addr, ACK_CHECK_EN);
-
-  // IIC_Start(); //IIC start
   i2c_master_start(cmd);
-
-  // IIC_Send_Byte(2 * sla_addr + 1); //send read command
-
-  // if (IIC_Wait_Ack() < 0) //wait device ack
-  // {
-  //   IIC_Stop(); //IIC stop
-
-  //   return FAILURE;
-  // }
   i2c_master_write_byte(cmd, 2 * sla_addr + 1, ACK_CHECK_EN);
 
   for (i = 0; i < size; i++)
   {
-    // if (i == size - 1)
-    // {
-    //   buf[i] = IIC_Read_Byte(0); //read a byte
-    // }
-    // else
-    // {
-    //   buf[i] = IIC_Read_Byte(1); //read a byte
-    // }
     if (i == size - 1)
     {
-      i2c_master_read_byte(cmd, &buf[i], NACK_VAL); //只读1 byte 不需要应答;  //read a byte no ack
+      i2c_master_read_byte(cmd, buf, NACK_VAL); //只读1 byte 不需要应答;  //read a byte no ack
     }
     else
     {
-      i2c_master_read_byte(cmd, &buf[i], ACK_VAL); //read a byte ack
+      i2c_master_read_byte(cmd, buf, ACK_VAL); //read a byte ack
     }
 
-    if ((buf[i] == '!') && (end_flag)) //end flag
-    {
-      // buf[i] = IIC_Read_Byte(0); //read a byte
-      i2c_master_read_byte(cmd, &buf[i], NACK_VAL);
+    //ESP32 IIC 在这里读不到字节
+    // ESP_LOGI(TAG, "%d,%c", __LINE__, *buf);
+    // if ((*buf == '!') && (end_flag)) //end flag
+    // {
+    //   // buf[i] = IIC_Read_Byte(0); //read a byte
+    //   i2c_master_read_byte(cmd, buf, NACK_VAL);
 
-      buf[i] = '\0';
+    //   *buf = '\0';
+    //   // ESP_LOGI(TAG, "%d,end flag,i=%d,%s", __LINE__, i, buf);
 
-      break;
-    }
+    //   break;
+    // }
+    buf++;
   }
+
   i2c_master_stop(cmd);
   esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS);
   i2c_cmd_link_delete(cmd);
-
-  if (i == size || ret != ESP_OK)
+  if (ret != ESP_OK)
   {
+    ESP_LOGE(TAG, "%d,%s", __LINE__, esp_err_to_name(ret));
     return FAILURE;
   }
-
-  // IIC_Stop(); //IIC stop
 
   return SUCCESS;
 }
@@ -304,19 +275,29 @@ static short I2C_ReadAt24c08(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, u
 *******************************************************************************/
 void at24c08_ReadData(uint16_t reg_addr, uint8_t *buf, uint8_t size, bool end_flag)
 {
-  uint8_t n_try;
+  // uint8_t n_try;
 
-  for (n_try = 0; n_try < RETRY_TIME_OUT; n_try++)
+  // for (n_try = 0; n_try < RETRY_TIME_OUT; n_try++)
+  // {
+  if (I2C_ReadAt24c08(at24c08_addr0 + reg_addr / 256, reg_addr % 256, buf, size, end_flag) == SUCCESS)
   {
-    if (I2C_ReadAt24c08(at24c08_addr0 + reg_addr / 256, reg_addr % 256, buf, size, end_flag) == SUCCESS)
+    if (end_flag)
     {
-      break;
+      if (strtok((char *)buf, "!") == NULL)
+      {
+        ESP_LOGE(TAG, "%d,%s", __LINE__, buf);
+        // return FAILURE;
+      }
     }
-    else
-    {
-      MAP_UtilsDelay(40000); //delay about 3ms
-    }
+
+    ESP_LOGI(TAG, "%d,%s", __LINE__, buf);
+    // break;
   }
+  else
+  {
+    MAP_UtilsDelay(40000); //delay about 3ms
+  }
+  // }
 }
 
 /*******************************************************************************

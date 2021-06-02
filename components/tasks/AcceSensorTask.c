@@ -57,9 +57,9 @@ uint8_t osi_adx345_readReg(uint8_t addr)
   xSemaphoreGive(xMutex1); //SPI Semaphore Give
 #endif
 #ifdef ADXL345_IIC
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
   read_val = adx345_readReg(addr);
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 #endif
 
   return read_val;
@@ -101,7 +101,7 @@ void acce_sensor_reset(void)
   xSemaphoreGive(xMutex1); //SPI Semaphore Give
 #endif
 #ifdef ADXL345_IIC
-  vTaskSuspendAll();                     //disable the tasks
+  //vTaskSuspendAll();                     //disable the tasks
   if (adx345_readReg(DEVICE_ID) == 0xE5) //read the sensor device id
   {
     if (fn_acc_tap1 || fn_acc_tap2 || fn_acc_act)
@@ -118,7 +118,7 @@ void acce_sensor_reset(void)
       adx345_writeReg(POWER_CTL, 0x24); //link mode,standby mode,deep sleep mode
     }
   }
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 #endif
 }
 
@@ -133,9 +133,9 @@ static void osi_adxl_read(short *x_val, short *y_val, short *z_val)
   xSemaphoreGive(xMutex1); //SPI Semaphore Give
 #endif
 #ifdef ADXL345_IIC
-  vTaskSuspendAll();                   //disable the tasks
+  //vTaskSuspendAll();                   //disable the tasks
   ADXL345_RD_xyz(x_val, y_val, z_val); //read three Axis data
-  xTaskResumeAll();                    //enable all tasks
+  //xTaskResumeAll();                    //enable all tasks
 #endif
 }
 
@@ -216,7 +216,8 @@ void AcceSensor_Int_Task(void *pvParameters)
         {
           acce_act = 1;
           // osi_SyncObjSignalFromISR(&xBinary5);  //Start Acce Sensor Task
-          vTaskNotifyGiveFromISR(xBinary5, NULL);
+          if (xBinary5 != NULL)
+            vTaskNotifyGiveFromISR(xBinary5, NULL);
         }
       }
       if (acce_status & 0x08) //ACCE Sensor INACT Interrupt
@@ -285,7 +286,8 @@ void AccelerationSensorTask(void *pvParameters)
       {
         acce_act = 0;
         // osi_SyncObjSignalFromISR(&xBinary12); //Start Acce Sensor interrupt Task
-        vTaskNotifyGiveFromISR(xBinary12, NULL);
+        if (xBinary12 != NULL)
+          vTaskNotifyGiveFromISR(xBinary12, NULL);
         break;
       }
 

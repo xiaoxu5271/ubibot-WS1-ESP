@@ -19,6 +19,7 @@
 #include "freertos/task.h"
 #include "driver/gpio.h"
 #include "driver/uart.h"
+#include "esp_log.h"
 
 #include "sht30dis.h"
 #include "opt3001.h"
@@ -30,6 +31,8 @@
 #include "MsgType.h"
 #include "PeripheralDriver.h"
 #include "HttpClientTask.h"
+#include "app_config.h"
+
 #include "UartTask.h"
 
 extern TaskHandle_t GR_LED_FAST_TaskHandle;
@@ -97,7 +100,7 @@ static void UartReadData(unsigned long addr)
   //  xSemaphoreTake(xMutex4, -1); //UART Semaphore Take
   xSemaphoreTake(xMutex4, -1);
 
-  printf("{\"save_data_sum\":%d}\r\n", save_data_num);
+  printf("{\"save_data_sum\":%ld}\r\n", save_data_num);
 
   //  xSemaphoreGive(xMutex4); //UART Semaphore Give
   xSemaphoreGive(xMutex4);
@@ -168,6 +171,7 @@ void UartParseTask(void *pvParameters)
   uint16_t all_read_len = 0;
   while (1)
   {
+    ESP_LOGI(TAG, "%d", __LINE__);
     if (xQueueReceive(Log_uart_queue, (void *)&event, (portTickType)portMAX_DELAY))
     {
       switch (event.type)
@@ -181,7 +185,7 @@ void UartParseTask(void *pvParameters)
             all_read_len = 0;
             memset(UartGet, 0, UART_REV_BUF_LEN);
           }
-          uart_read_bytes(UART_NUM_0, UartGet + all_read_len, event.size, portMAX_DELAY);
+          uart_read_bytes(UART_NUM_0, (uint8_t *)UartGet + all_read_len, event.size, portMAX_DELAY);
 
           uxQueueMessagesWaiting(Log_uart_queue);
 
@@ -214,7 +218,7 @@ void UartParseTask(void *pvParameters)
               }
               else
               {
-                xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 9, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task
+                my_xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 9, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task
                 set_val = osi_WiFi_Connect_Test();
                 vTaskDelete(GR_LED_FAST_TaskHandle); //delete Green and Red Led Fast Flash Task
                 SET_RED_LED_OFF();                   //Set Red Led Off
@@ -230,9 +234,11 @@ void UartParseTask(void *pvParameters)
                   Green_Led_Flashed(3, 3);
                   osi_UartPrint_Mul(SUCCESSED_CODE, "\r\n");
                   // osi_SyncObjSignalFromISR(&xBinary16); //start device activate
-                  vTaskNotifyGiveFromISR(xBinary16, NULL);
+                  if (xBinary16 != NULL)
+                    vTaskNotifyGiveFromISR(xBinary16, NULL);
                   // osi_SyncObjSignalFromISR(&xBinary0);  //Post Task
-                  vTaskNotifyGiveFromISR(xBinary0, NULL);
+                  if (xBinary0 != NULL)
+                    vTaskNotifyGiveFromISR(xBinary0, NULL);
                 }
               }
               break;

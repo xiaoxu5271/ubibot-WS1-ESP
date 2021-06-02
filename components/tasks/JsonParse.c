@@ -30,6 +30,7 @@
 #include "HttpClientTask.h"
 #include "MagTask.h"
 #include "w25q128.h"
+#include "app_config.h"
 
 extern uint8_t HOST_IP[4];
 extern char SEC_TYPE[8];
@@ -416,7 +417,8 @@ static short Parse_metadata(char *ptrptr)
   if (fn_flag > 0)
   {
     // osi_SyncObjSignalFromISR(&xBinary9);  //check Task start time
-    vTaskNotifyGiveFromISR(xBinary9, NULL);
+    if (xBinary9 != NULL)
+      vTaskNotifyGiveFromISR(xBinary9, NULL);
   }
 
   cJSON_Delete(pJsonJson);
@@ -768,7 +770,7 @@ static char Parse_commands(char *ptr)
 
     if (pSub->valueint == 1)
     {
-      osi_at24c08_WriteData(SYSTEM_STATUS_ADDR, SYSTEM_OFF, strlen(SYSTEM_OFF), 1); //Restor The System Status-OFF
+      osi_at24c08_WriteData(SYSTEM_STATUS_ADDR, (uint8_t *)SYSTEM_OFF, strlen(SYSTEM_OFF), 1); //Restor The System Status-OFF
     }
   }
 
@@ -1364,15 +1366,15 @@ int ParseSetJSONData(char *ptr)
 
 #endif
 
-      strncpy(ProductURI, DataURI1, strlen(DataURI1));
+      memcpy(ProductURI, DataURI1, strlen(DataURI1) + 1);
 
       i += strlen(DataURI1);
 
-      strncpy(ProductURI + i, pSubSub->valuestring, strlen(pSubSub->valuestring));
+      memcpy(ProductURI + i, pSubSub->valuestring, strlen(pSubSub->valuestring) + 1);
 
       i += strlen(pSubSub->valuestring);
 
-      strncpy(ProductURI + i, FIRMWAREVIEW, strlen(FIRMWAREVIEW));
+      memcpy(ProductURI + i, FIRMWAREVIEW, strlen(FIRMWAREVIEW) + 1);
 
       i += strlen(FIRMWAREVIEW);
 
@@ -1384,7 +1386,7 @@ int ParseSetJSONData(char *ptr)
 
 #endif
 
-      osi_at24c08_WriteData(DATAURI_FLAG_ADDR, DATA_URI, strlen(DATA_URI), 1); //save datauri flag to at24c08
+      osi_at24c08_WriteData(DATAURI_FLAG_ADDR, (uint8_t *)DATA_URI, strlen(DATA_URI), 1); //save datauri flag to at24c08
 
       osi_at24c08_WriteData(DATAURI_ADDR, (uint8_t *)ProductURI, strlen(ProductURI), 1); //save datauri to at24c08
     }
@@ -1406,7 +1408,7 @@ void Read_Product_Set(char *read_buf, uint16_t data_len)
   char series_number[16] = {0};
   char channel_id[8] = {0};
   char user_id[40] = {0};
-  char useage[4] = {0};
+  char useage[5] = {0};
   char host_ip_buf[16] = {0};
   char mac_buf[18] = {0};
   uint8_t mac_addr[8] = {0};
@@ -1448,8 +1450,8 @@ void Read_Product_Set(char *read_buf, uint16_t data_len)
 
   cJSON_AddStringToObject(pJsonRoot, "USAGE", useage);
 
-  osi_at24c08_ReadData(MAC_ADDR, mac_addr, SL_MAC_ADDR_LEN, 0);
-
+  // osi_at24c08_ReadData(MAC_ADDR, mac_addr, SL_MAC_ADDR_LEN, 0);
+  esp_read_mac(mac_addr, 0); //获取芯片内部默认出厂MAC
   snprintf(mac_buf, sizeof(mac_buf), "%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
 
   cJSON_AddStringToObject(pJsonRoot, "MAC", mac_buf);
@@ -1462,7 +1464,7 @@ void Read_Product_Set(char *read_buf, uint16_t data_len)
 
   memcpy(read_buf, out_buf, data_len);
 
-  mem_Free(out_buf);
+  cJSON_free(out_buf);
 
   xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
@@ -1552,7 +1554,7 @@ void Read_Wifi_Set(char *read_buf, uint16_t data_len)
 
   memcpy(read_buf, out_buf, data_len);
 
-  mem_Free(out_buf);
+  cJSON_free(out_buf);
 
   xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
@@ -1607,7 +1609,7 @@ void Cmd_Read_MetaData(char *read_buf, uint16_t data_len)
 
   memcpy(read_buf, out_buf, data_len);
 
-  mem_Free(out_buf);
+  cJSON_free(out_buf);
 
   xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
@@ -1642,8 +1644,8 @@ void Cmd_System_TestData(char *read_buf, uint16_t data_len)
 
   pJsonRoot = cJSON_CreateObject();
 
-  osi_at24c08_ReadData(MAC_ADDR, mac_addr, SL_MAC_ADDR_LEN, 0);
-
+  // osi_at24c08_ReadData(MAC_ADDR, mac_addr, SL_MAC_ADDR_LEN, 0);
+  esp_read_mac(mac_addr, 0); //获取芯片内部默认出厂MAC
   snprintf(mac_buf, sizeof(mac_buf), "%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
 
   cJSON_AddStringToObject(pJsonRoot, "MAC", mac_buf);
@@ -1696,7 +1698,7 @@ void Cmd_System_TestData(char *read_buf, uint16_t data_len)
 
   memcpy(read_buf, out_buf, data_len);
 
-  mem_Free(out_buf);
+  cJSON_free(out_buf);
 
   xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
@@ -1781,7 +1783,7 @@ int ParseTcpUartCmd(char *pcCmdBuffer)
 
         if (!strcmp((char const *)pSub->valuestring, "CloudForce"))
         {
-          osi_at24c08_WriteData(PRODUCTURI_FLAG_ADDR, PRODUCT_URI, strlen(PRODUCT_URI), 1); //save product-uri flag
+          osi_at24c08_WriteData(PRODUCTURI_FLAG_ADDR, (uint8_t *)PRODUCT_URI, strlen(PRODUCT_URI), 1); //save product-uri flag
 
           pSub = cJSON_GetObjectItem(pJson, "ProductID"); //"ProductID"
           if (NULL != pSub)
@@ -1855,42 +1857,42 @@ int ParseTcpUartCmd(char *pcCmdBuffer)
 
       return SUCCESS;
     }
-    else if (!strcmp((char const *)pSub->valuestring, "SetMac")) //Command:SetMac
-    {
-      pSub = cJSON_GetObjectItem(pJson, "mac"); //"mac"
-      if (NULL != pSub)
-      {
-#ifdef DEBUG
-        osi_UartPrint_Mul("\"mac\":", pSub->valuestring);
-#endif
+    //     else if (!strcmp((char const *)pSub->valuestring, "SetMac")) //Command:SetMac
+    //     {
+    //       pSub = cJSON_GetObjectItem(pJson, "mac"); //"mac"
+    //       if (NULL != pSub)
+    //       {
+    // #ifdef DEBUG
+    //         osi_UartPrint_Mul("\"mac\":", pSub->valuestring);
+    // #endif
 
-        uint8_t mac_addr[6] = {0};
-        Parse_Mac_addr(pSub->valuestring, mac_addr);
+    //         uint8_t mac_addr[6] = {0};
+    //         Parse_Mac_addr(pSub->valuestring, mac_addr);
 
-        if (AP_MODE_END_FLAG)
-        {
-          sl_NetCfgSet(SL_MAC_ADDRESS_SET, 1, SL_MAC_ADDR_LEN, mac_addr);
-        }
-        else if ((!APIGET_TASK_END_FLAG) && (!UPDATETIME_TASK_END_FLAG) && (!POST_TASK_END_FLAG))
-        {
-          xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
-          sl_Start(0, 0, 0);           //start the simple link
-          sl_NetCfgSet(SL_MAC_ADDRESS_SET, 1, SL_MAC_ADDR_LEN, mac_addr);
-          sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
-          MAP_UtilsDelay(80000);    //delay about 6ms
-          xSemaphoreGive(xMutex2);  //SimpleLink Semaphore Give
-        }
-        else
-        {
-          cJSON_Delete(pJson); //delete pJson
-          return FAILURE;
-        }
-        osi_at24c08_WriteData(MAC_ADDR, (uint8_t *)mac_addr, SL_MAC_ADDR_LEN, 0); //save type
-      }
+    //         if (AP_MODE_END_FLAG)
+    //         {
+    //           sl_NetCfgSet(SL_MAC_ADDRESS_SET, 1, SL_MAC_ADDR_LEN, mac_addr);
+    //         }
+    //         else if ((!APIGET_TASK_END_FLAG) && (!UPDATETIME_TASK_END_FLAG) && (!POST_TASK_END_FLAG))
+    //         {
+    //           xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
+    //           sl_Start(0, 0, 0);           //start the simple link
+    //           sl_NetCfgSet(SL_MAC_ADDRESS_SET, 1, SL_MAC_ADDR_LEN, mac_addr);
+    //           sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
+    //           MAP_UtilsDelay(80000);    //delay about 6ms
+    //           xSemaphoreGive(xMutex2);  //SimpleLink Semaphore Give
+    //         }
+    //         else
+    //         {
+    //           cJSON_Delete(pJson); //delete pJson
+    //           return FAILURE;
+    //         }
+    //         osi_at24c08_WriteData(MAC_ADDR, (uint8_t *)mac_addr, SL_MAC_ADDR_LEN, 0); //save type
+    //       }
 
-      cJSON_Delete(pJson); //delete pJson
-      return SUCCESS;
-    }
+    //       cJSON_Delete(pJson); //delete pJson
+    //       return SUCCESS;
+    //     }
     else if (!strcmp((char const *)pSub->valuestring, "SetupWifi")) //Command:SetupWifi
     {
       pSub = cJSON_GetObjectItem(pJson, "SSID"); //"SSID"
@@ -1904,7 +1906,7 @@ int ParseTcpUartCmd(char *pcCmdBuffer)
 
         if (sizeof(SSID_NAME) >= strlen(pSub->valuestring))
         {
-          osi_at24c08_WriteData(SSID_FLAG_ADDR, "SSID", strlen("SSID"), 1); //save ssid flag to at24c08
+          osi_at24c08_WriteData(SSID_FLAG_ADDR, (uint8_t *)"SSID", strlen("SSID"), 1); //save ssid flag to at24c08
 
           osi_at24c08_write_byte(SSID_LEN_ADDR, strlen(pSub->valuestring));
 
@@ -2196,23 +2198,23 @@ void read_product_url(char *url_buf)
 
   osi_at24c08_ReadData(SERISE_NUM_ADDR, (uint8_t *)series_number, sizeof(series_number), 1);
 
-  strncpy(url_buf, ProductURI1, strlen(ProductURI1));
+  memcpy(url_buf, ProductURI1, strlen(ProductURI1));
 
   i += strlen(ProductURI1); //ProductURI1
 
-  strncpy(url_buf + i, product_id, strlen(product_id));
+  memcpy(url_buf + i, product_id, strlen(product_id));
 
   i += strlen(product_id); //ProductID
 
-  strncpy(url_buf + i, ProductURI2, strlen(ProductURI2));
+  memcpy(url_buf + i, ProductURI2, strlen(ProductURI2));
 
   i += strlen(ProductURI2); //ProductURI2
 
-  strncpy(url_buf + i, series_number, strlen(series_number));
+  memcpy(url_buf + i, series_number, strlen(series_number));
 
   i += strlen(series_number); //SeriesNumber
 
-  strncpy(url_buf + i, ProductURI3, strlen(ProductURI3));
+  memcpy(url_buf + i, ProductURI3, strlen(ProductURI3));
 
   i += strlen(ProductURI3); //"/activate"
 
@@ -2374,7 +2376,7 @@ void Read_System_ERROR_Code(char *read_buf, uint16_t data_len)
 
   memcpy(read_buf, out_buf, data_len);
 
-  mem_Free(out_buf);
+  cJSON_free(out_buf);
 
   xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
@@ -2411,7 +2413,7 @@ void Web_Wifi_Set(char *read_buf, uint8_t data_len, char *WiFi_ssid, short WiFi_
 
   memcpy(read_buf, out_buf, data_len);
 
-  mem_Free(out_buf);
+  cJSON_free(out_buf);
 
   xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
@@ -2445,7 +2447,7 @@ short Parse_HttpMsg(char *ptr)
 
     if (sizeof(SSID_NAME) >= strlen(pSub->valuestring))
     {
-      osi_at24c08_WriteData(SSID_FLAG_ADDR, "SSID", strlen("SSID"), 1); //save ssid flag to at24c08
+      osi_at24c08_WriteData(SSID_FLAG_ADDR, (uint8_t *)"SSID", strlen("SSID"), 1); //save ssid flag to at24c08
 
       osi_at24c08_write_byte(SSID_LEN_ADDR, strlen(pSub->valuestring)); //save SSSID len
 
@@ -2453,28 +2455,28 @@ short Parse_HttpMsg(char *ptr)
     }
   }
 
-  pSub = cJSON_GetObjectItem(pJson, "type"); //"type"
-  if (NULL != pSub)
-  {
-#ifdef DEBUG_RESPONSE
-    osi_UartPrint("\"type\":");
-    osi_UartPrint(pSub->valuestring);
-    osi_UartPrint("\r\n");
-#endif
+  //   pSub = cJSON_GetObjectItem(pJson, "type"); //"type"
+  //   if (NULL != pSub)
+  //   {
+  // #ifdef DEBUG_RESPONSE
+  //     osi_UartPrint("\"type\":");
+  //     osi_UartPrint(pSub->valuestring);
+  //     osi_UartPrint("\r\n");
+  // #endif
 
-    if (pSub->valueint == SL_SEC_TYPE_OPEN)
-    {
-      osi_at24c08_WriteData(SECTYPE_ADDR, "OPEN", strlen("OPEN"), 1); //save type
-    }
-    else if (pSub->valueint == SL_SEC_TYPE_WEP)
-    {
-      osi_at24c08_WriteData(SECTYPE_ADDR, "WEP", strlen("WEP"), 1); //save type
-    }
-    else
-    {
-      osi_at24c08_WriteData(SECTYPE_ADDR, "WPA", strlen("WPA"), 1); //save type
-    }
-  }
+  //     if (pSub->valueint == SL_SEC_TYPE_OPEN)
+  //     {
+  //       osi_at24c08_WriteData(SECTYPE_ADDR, "OPEN", strlen("OPEN"), 1); //save type
+  //     }
+  //     else if (pSub->valueint == SL_SEC_TYPE_WEP)
+  //     {
+  //       osi_at24c08_WriteData(SECTYPE_ADDR, "WEP", strlen("WEP"), 1); //save type
+  //     }
+  //     else
+  //     {
+  //       osi_at24c08_WriteData(SECTYPE_ADDR, "WPA", strlen("WPA"), 1); //save type
+  //     }
+  //   }
 
   cJSON_Delete(pJson);
 
@@ -2524,7 +2526,7 @@ void Read_cali(char *read_buf, uint16_t data_len)
   out_buf = cJSON_PrintUnformatted(pJsonRoot); //cJSON_Print(Root)
   cJSON_Delete(pJsonRoot);                     //delete cjson root
   memcpy(read_buf, out_buf, data_len);
-  mem_Free(out_buf);
+  cJSON_free(out_buf);
   xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 }
 

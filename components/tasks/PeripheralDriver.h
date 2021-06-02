@@ -61,7 +61,7 @@ extern void Green_LedFlashed_Task(void *pvParameters); //GREEN LED Flashed when 
 
 extern void Green_LedControl_Task(void *pvParameters); //Green LED control task//
 
-extern void bell_makeSound(uint16_t n_bel); //bell make sound//
+extern void bell_makeSound(uint32_t n_bel); //bell make sound//
 
 extern void Green_Led_Bell_Sound(uint16_t n_bel); //Green Led ON and Bell Sound//
 

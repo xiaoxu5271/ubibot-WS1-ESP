@@ -53,7 +53,7 @@ float power_adcValue(void)
 
   adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
   esp_adc_cal_value_t val_type = esp_adc_cal_characterize(unit, atten, ADC_WIDTH_BIT_10, DEFAULT_VREF, adc_chars);
-  print_char_val_type(val_type);
+  // print_char_val_type(val_type);
 
   for (int i = 0; i < NO_OF_SAMPLES; i++)
   {

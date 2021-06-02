@@ -89,7 +89,8 @@ static void DataSave(char *buffer, uint8_t size)
     data_post = 0;
 
     // osi_SyncObjSignalFromISR(&xBinary0);  //send message to data post task
-    vTaskNotifyGiveFromISR(xBinary0, NULL);
+    if (xBinary0 != NULL)
+      vTaskNotifyGiveFromISR(xBinary0, NULL);
   }
 
 #ifdef DEBUG_SAVE
@@ -106,7 +107,7 @@ static void DataSave(char *buffer, uint8_t size)
 *******************************************************************************/
 void DataSaveTask(void *pvParameters)
 {
-  char fields[7];
+  char fields[9];
   char utctime[21];
   char *OutBuffer;
   cJSON *pJsonRoot;
@@ -140,14 +141,15 @@ void DataSaveTask(void *pvParameters)
 
     memcpy(SaveBuffer, OutBuffer, SAVE_DATA_SIZE);
 
-    free(OutBuffer);
+    cJSON_free(OutBuffer);
 
     xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 
     if ((POST_NUM >= Memory_Max_Addr) || (WRITE_ADDR > Memory_Max_Addr) || (POST_ADDR > Memory_Max_Addr) || (DELETE_ADDR > Memory_Max_Addr))
     {
       // osi_SyncObjSignalFromISR(&xBinary11); //start delete task
-      vTaskNotifyGiveFromISR(xBinary11, NULL);
+      if (xBinary11 != NULL)
+        vTaskNotifyGiveFromISR(xBinary11, NULL);
     }
     else
     {
@@ -219,7 +221,8 @@ void DataSaveTask(void *pvParameters)
       else //pointer variable wrong,need delete all sensor data
       {
         // osi_SyncObjSignalFromISR(&xBinary11); //start delete task
-        vTaskNotifyGiveFromISR(xBinary11, NULL);
+        if (xBinary11 != NULL)
+          vTaskNotifyGiveFromISR(xBinary11, NULL);
       }
     }
   }

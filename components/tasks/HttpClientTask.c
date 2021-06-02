@@ -70,6 +70,7 @@ extern SemaphoreHandle_t xMutex3; //Used for cJSON Lock
 extern SemaphoreHandle_t xMutex4; //Used for UART Lock
 extern SemaphoreHandle_t xMutex5; //Used for Post_Data_Buffer Lock
 
+extern char SEC_TYPE[8];
 extern char SSID_NAME[32];
 extern char HOST_NAME[64];
 extern char POST_REQUEST_URI[250];
@@ -107,7 +108,7 @@ esp_http_client_handle_t Http_Init_Fun(void);
 static int readResponse(esp_http_client_handle_t httpClient)
 {
   long lRetVal = 0;
-  int bytesRead = 0;
+  // int bytesRead = 0;
 
   int content_length = esp_http_client_fetch_headers(httpClient);
   if (content_length < 0)
@@ -266,7 +267,7 @@ int HTTPGetMethod(esp_http_client_handle_t httpClient)
 int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, uint16_t Post_Amount)
 {
   uint8_t url_len = 0;
-  char tmpBuf[8] = {0};
+  // char tmpBuf[8] = {0};
   long lRetVal = 0;
   bool EndFlag = 0;
   uint16_t post_data_sum;
@@ -450,7 +451,7 @@ short Http_Get_Function(void)
     return lRetVal;
   }
 
-  lRetVal = HTTPGetMethod(&client);
+  lRetVal = HTTPGetMethod(client);
   esp_http_client_cleanup(client);
 
   return lRetVal;
@@ -476,7 +477,8 @@ void PostAddrChage(unsigned long data_num, unsigned long end_addr)
     if (w_addr <= end_addr)
     {
       // osi_SyncObjSignalFromISR(&xBinary11); //start delete task
-      vTaskNotifyGiveFromISR(xBinary11, NULL);
+      if (xBinary11 != NULL)
+        vTaskNotifyGiveFromISR(xBinary11, NULL);
     }
   }
   else if ((p_addr >= d_addr) && (p_addr >= w_addr) && (d_addr >= w_addr)) //p_addr>w_addr
@@ -494,13 +496,15 @@ void PostAddrChage(unsigned long data_num, unsigned long end_addr)
       POST_ADDR = end_addr;
 
       // osi_SyncObjSignalFromISR(&xBinary11); //start delete task
-      vTaskNotifyGiveFromISR(xBinary11, NULL);
+      if (xBinary11 != NULL)
+        vTaskNotifyGiveFromISR(xBinary11, NULL);
     }
   }
   else
   {
     // osi_SyncObjSignalFromISR(&xBinary11); //start delete task
-    vTaskNotifyGiveFromISR(xBinary11, NULL);
+    if (xBinary11 != NULL)
+      vTaskNotifyGiveFromISR(xBinary11, NULL);
   }
 
   if (POST_NUM >= data_num)
@@ -573,10 +577,12 @@ void DataPostTask(void *pvParameters)
     POST_TASK_END_FLAG = 1;
 
     // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
-    vTaskNotifyGiveFromISR(xBinary13, NULL);
+    if (xBinary13 != NULL)
+      vTaskNotifyGiveFromISR(xBinary13, NULL);
 
     // osi_SyncObjSignalFromISR(&xBinary17); //Start LED Blink
-    vTaskNotifyGiveFromISR(xBinary17, NULL);
+    if (xBinary17 != NULL)
+      vTaskNotifyGiveFromISR(xBinary17, NULL);
 
     Rssi_val = Scan_Wifi_List(NULL, NULL, 0);
 
@@ -644,7 +650,7 @@ void DataPostTask(void *pvParameters)
               // return lRetVal;
             }
 
-            lRetVal = HTTPPostMethod(&client, post_data_len, post_data_num);
+            lRetVal = HTTPPostMethod(client, post_data_len, post_data_num);
             esp_http_client_cleanup(client);
 
             // HTTPCli_disconnect(&client); //disconnect to http server
@@ -707,7 +713,8 @@ void DataPostTask(void *pvParameters)
     xSemaphoreGive(xMutex2);
 
     // osi_SyncObjSignalFromISR(&xBinary11); //start delete task
-    vTaskNotifyGiveFromISR(xBinary11, NULL);
+    if (xBinary11 != NULL)
+      vTaskNotifyGiveFromISR(xBinary11, NULL);
 
     if (Err_Status)
     {

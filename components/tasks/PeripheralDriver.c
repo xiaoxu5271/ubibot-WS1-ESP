@@ -23,8 +23,9 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "esp_system.h"
-#include "esp_spi_flash.h"
 #include "esp_log.h"
 #include "driver/uart.h"
 #include "driver/gpio.h"
@@ -42,11 +43,11 @@
 #include "PeripheralDriver.h"
 // #include "ht1621.h"
 
-extern OsiMsgQ_t xQueue1;      //Used for LED control task
-extern OsiMsgQ_t xQueue2;      //Used for bell conctrol task
-extern OsiSyncObj_t xMutex1;   //Used for SPI Lock
-extern OsiSyncObj_t xMutex4;   //Used for UART Lock
-extern OsiSyncObj_t xBinary17; //Internet Application
+extern QueueHandle_t xQueue1;     //Used for LED control task
+extern QueueHandle_t xQueue2;     //Used for bell conctrol task
+extern SemaphoreHandle_t xMutex1; //Used for SPI Lock
+extern SemaphoreHandle_t xMutex4; //Used for UART Lock
+extern TaskHandle_t xBinary17;    //Internet Application
 
 extern volatile bool POST_TASK_END_FLAG;
 extern volatile bool UPDATETIME_TASK_END_FLAG;
@@ -287,7 +288,7 @@ void Green_LedControl_Task(void *pvParameters)
     // osi_MsgQRead(&xQueue1, &led_t, -1); //Wait LED Value Message
     xQueueReceive(xQueue1, &led_t, portMAX_DELAY);
 
-    vTaskSuspendAll(); //disable the tasks
+    //vTaskSuspendAll(); //disable the tasks
 
     SET_GREEN_LED_ON(); //LED ON
 
@@ -295,14 +296,14 @@ void Green_LedControl_Task(void *pvParameters)
 
     SET_GREEN_LED_OFF(); //LED OFF
 
-    xTaskResumeAll(); //enable all tasks
+    //xTaskResumeAll(); //enable all tasks
   }
 }
 
 /*******************************************************************************
 //bell make sound
 *******************************************************************************/
-void bell_makeSound(uint16_t n_bel)
+void bell_makeSound(uint32_t n_bel)
 {
   uint16_t bel;
 
@@ -335,11 +336,11 @@ void Green_Led_Bell_Sound(uint16_t n_bel)
 *******************************************************************************/
 void osi_bell_makeSound(uint16_t n_bel)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   bell_makeSound(n_bel); //Bell make a sound,n_bel times
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -393,7 +394,7 @@ void osi_UartPrint_Val(char *buffer, unsigned long value)
 
   printf("%s", buffer);
 
-  printf("%d", value);
+  printf("%ld", value);
 
   xSemaphoreGive(xMutex4); //UART Semaphore Give
 }
@@ -405,11 +406,11 @@ uint8_t osi_IIC_ReadReg(uint8_t sla_addr, uint8_t reg_addr)
 {
   uint8_t sec_n;
 
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   MulTry_IIC_RD_Reg(sla_addr, reg_addr, &sec_n); //read time sec
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 
   return sec_n;
 }
@@ -419,11 +420,11 @@ uint8_t osi_IIC_ReadReg(uint8_t sla_addr, uint8_t reg_addr)
 *******************************************************************************/
 void osi_at24c08_write_byte(uint16_t reg_addr, uint8_t num)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   at24c08_write_byte(reg_addr, num);
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -433,11 +434,11 @@ uint8_t osi_at24c08_read_byte(uint16_t reg_addr)
 {
   uint8_t read_val;
 
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   read_val = at24c08_read_byte(reg_addr);
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 
   return read_val;
 }
@@ -447,11 +448,11 @@ uint8_t osi_at24c08_read_byte(uint16_t reg_addr)
 *******************************************************************************/
 void osi_at24c08_write(uint16_t reg_addr, unsigned long num)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   at24c08_write(reg_addr, num);
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -461,11 +462,11 @@ unsigned long osi_at24c08_read(uint16_t reg_addr)
 {
   unsigned long read_val;
 
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   read_val = at24c08_read(reg_addr);
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 
   return read_val;
 }
@@ -475,11 +476,11 @@ unsigned long osi_at24c08_read(uint16_t reg_addr)
 *******************************************************************************/
 void osi_at24c08_WriteData(uint16_t addr, uint8_t *buffer, uint8_t Size, bool end_flag)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   at24c08_WriteData(addr, buffer, Size, end_flag);
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -487,11 +488,11 @@ void osi_at24c08_WriteData(uint16_t addr, uint8_t *buffer, uint8_t Size, bool en
 *******************************************************************************/
 void osi_at24c08_ReadData(uint16_t addr, uint8_t *buffer, uint8_t size, bool end_flag)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   at24c08_ReadData(addr, buffer, size, end_flag);
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 //******************************************************************************
@@ -499,11 +500,11 @@ void osi_at24c08_ReadData(uint16_t addr, uint8_t *buffer, uint8_t size, bool end
 //******************************************************************************
 void osi_Update_UTCtime(char *time_buff)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   Update_UTCtime(time_buff); //update time
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -511,11 +512,11 @@ void osi_Update_UTCtime(char *time_buff)
 *******************************************************************************/
 void osi_Read_UTCtime(char *buffer, uint8_t buf_size)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   Read_UTCtime(buffer, buf_size);
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -523,11 +524,11 @@ void osi_Read_UTCtime(char *buffer, uint8_t buf_size)
 *******************************************************************************/
 void osi_Read_UnixTime(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   now_unix_t = Read_UnixTime(); //read unix time
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -562,11 +563,11 @@ void at24c08_save_addr(void)
 *******************************************************************************/
 void osi_at24c08_save_addr(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   at24c08_save_addr(); //Save Post Data Amount/Write Data/Post Data/Delete Data Address
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -601,11 +602,11 @@ void at24c08_read_addr(void)
 *******************************************************************************/
 void osi_at24c08_read_addr(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   at24c08_read_addr();
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -689,11 +690,11 @@ void MetaData_Save(void)
 *******************************************************************************/
 void osi_MetaData_Save(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   MetaData_Save(); //At24c08 Save Metadata
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -741,11 +742,11 @@ void MetaData_Read(void)
 *******************************************************************************/
 void osi_MetaData_Read(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   MetaData_Read();
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -847,11 +848,11 @@ void CaliData_Save(void)
 *******************************************************************************/
 void osi_CaliData_Save(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   CaliData_Save(); //At24c08 Save Calidata
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -917,11 +918,11 @@ void CaliData_Read(void)
 *******************************************************************************/
 void osi_CaliData_Read(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   CaliData_Read();
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -951,11 +952,11 @@ void OperateData_Save(void)
 *******************************************************************************/
 void osi_OperateData_Save(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   OperateData_Save();
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -995,11 +996,11 @@ void Error_Code_Init(void)
 *******************************************************************************/
 void osi_Error_Code_Init(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   Error_Code_Init();
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -1035,11 +1036,11 @@ void OperateData_Read(void)
 *******************************************************************************/
 void osi_OperateData_Read(void)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   OperateData_Read();
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -1067,7 +1068,7 @@ void OperateData_Init(void)
 /*******************************************************************************
   Nor Flash Memory Chip Reset
 *******************************************************************************/
-static void Save_Data_Reset(void)
+void Save_Data_Reset(void)
 {
   POST_NUM = 0;    //reset data post amount
   WRITE_ADDR = 0;  //reset data write address
@@ -1078,7 +1079,7 @@ static void Save_Data_Reset(void)
 /*******************************************************************************
  save address test
 *******************************************************************************/
-static void save_addr_test(void)
+void save_addr_test(void)
 {
   save_addr_flag = 0;
 
@@ -1266,11 +1267,11 @@ unsigned long Read_PostDataBuffer(unsigned long Address, char *buffer, uint16_t 
       }
     }
 
-    strncpy(buffer + DataBit, read_buf, strlen(read_buf));
+    memcpy(buffer + DataBit, read_buf, strlen(read_buf));
 
     DataBit += strlen(read_buf);
 
-    strncpy(buffer + DataBit, ",", 1);
+    memcpy(buffer + DataBit, ",", 1);
 
     DataBit += 1; //end with ','
 
@@ -1293,11 +1294,11 @@ unsigned long Read_PostDataBuffer(unsigned long Address, char *buffer, uint16_t 
 *******************************************************************************/
 void osi_sht30_SingleShotMeasure(float *temp, float *humi)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   sht30_SingleShotMeasure(temp, humi); //read temperature humility data
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -1305,11 +1306,11 @@ void osi_sht30_SingleShotMeasure(float *temp, float *humi)
 *******************************************************************************/
 void osi_OPT3001_value(float *lightvalue)
 {
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   OPT3001_value(lightvalue); //Read Light Value
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 }
 
 /*******************************************************************************
@@ -1332,7 +1333,7 @@ void osi_ADXL345_RD_xyz(short *x_val, short *y_val, short *z_val)
   xSemaphoreGive(xMutex1); //SPI Semaphore Give
 #endif
 #ifdef ADXL345_IIC
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
   if (Adxl345_Check_Id() < 0)
   {
     *x_val = ERROR_CODE;
@@ -1343,7 +1344,7 @@ void osi_ADXL345_RD_xyz(short *x_val, short *y_val, short *z_val)
   {
     ADXL345_RD_xyz(x_val, y_val, z_val); //read three Axis data
   }
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 #endif
 }
 
@@ -1354,7 +1355,7 @@ float osi_ds18b20_get_temp(void)
 {
   float temp_val;
 
-  vTaskSuspendAll(); //disable the tasks
+  //vTaskSuspendAll(); //disable the tasks
 
   temp_val = ds18b20_get_temp(); //measure the temperature
 
@@ -1363,7 +1364,7 @@ float osi_ds18b20_get_temp(void)
     temp_val = ds18b20_get_temp(); //measure the temperature
   }
 
-  xTaskResumeAll(); //enable all tasks
+  //xTaskResumeAll(); //enable all tasks
 
   return temp_val;
 }

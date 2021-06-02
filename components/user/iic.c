@@ -264,49 +264,24 @@ static short I2C_RD_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uin
 {
   uint8_t i;
 
-  // IIC_Start(); //IIC start
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   i2c_master_start(cmd);
-
-  // IIC_Send_Byte(2 * sla_addr); //send write command
-
-  // if (IIC_Wait_Ack() < 0) //wait device ack
-  // {
-  //   return FAILURE;
-  // }
   i2c_master_write_byte(cmd, 2 * sla_addr, ACK_CHECK_EN);
-
-  // IIC_Send_Byte(reg_addr); //send register address
-
-  // if (IIC_Wait_Ack() < 0) //wait device ack
-  // {
-  //   return FAILURE;
-  // }
   i2c_master_write_byte(cmd, reg_addr, ACK_CHECK_EN);
-
-  // IIC_Start(); //IIC start
   i2c_master_start(cmd);
-
-  // IIC_Send_Byte(2 * sla_addr + 1); //send read command
-
-  // if (IIC_Wait_Ack() < 0) //wait device ack
-  // {
-  //   return FAILURE;
-  // }
   i2c_master_write_byte(cmd, 2 * sla_addr + 1, ACK_CHECK_EN);
 
   for (i = 0; i < len; i++)
   {
     if (i == len - 1)
     {
-      // buf[i] = IIC_Read_Byte(0); //read a byte no ack
-      i2c_master_read_byte(cmd, &buf[i], NACK_VAL);
+      i2c_master_read_byte(cmd, buf, NACK_VAL);
     }
     else
     {
-      // buf[i] = IIC_Read_Byte(1); //read a byte ack
-      i2c_master_read_byte(cmd, &buf[i], ACK_VAL);
+      i2c_master_read_byte(cmd, buf, ACK_VAL);
     }
+    buf++;
   }
 
   i2c_master_stop(cmd);

@@ -15,14 +15,15 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 
 #include "MsgType.h"
 #include "sht30dis.h"
 // #include "ht1621.h"
 #include "PeripheralDriver.h"
 
-extern OsiMsgQ_t xQueue0;     //Used for cjson and memory save
-extern OsiSyncObj_t xBinary2; //For Temp&Humi Sensor Task
+extern QueueHandle_t xQueue0; //Used for cjson and memory save
+extern TaskHandle_t xBinary2; //For Temp&Humi Sensor Task
 
 #ifdef USE_LCD
 extern OsiSyncObj_t xMutex6; //Used for Ht1621 LCD Driver

@@ -106,7 +106,9 @@
 #define FIRMWARENUM "ws1_v3.0.4"
 #define FIRMWAREVIEW "&firmware=ws1_v3.0.4"
 
-#define MAP_UtilsDelay(num) ets_delay_us((uint32_t)(3 / 40 * num))
+#define MAP_UtilsDelay(num) ets_delay_us((uint32_t)(num * 3 / 40))
+
+#define my_xTaskCreate(TaskCode, Name, Depth, Parameters, Priority, Handle) xTaskCreate(TaskCode, Name, Depth * 5, Parameters, Priority + 2, Handle)
 
 typedef struct
 {

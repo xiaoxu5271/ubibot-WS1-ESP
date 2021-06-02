@@ -200,51 +200,6 @@ char POST_REQUEST_URI[250];
 char Post_Data_Buffer[4096];
 char Read_Response_Buffer[RESP_BUF_LEN];
 
-/*******************************************************************************
-//Local Function Prototypes
-*******************************************************************************/
-// extern int platform_init();
-
-// extern void lp3p0_setup_power_policy(int power_policy);
-
-/*******************************************************************************
-//The Function Handles WLAN Events
-*******************************************************************************/
-
-unsigned char __SL_G_PID[] = "__SL_G_PID";
-unsigned char __SL_G_PSN[] = "__SL_G_PSN";
-unsigned char __SL_G_HST[] = "__SL_G_HST";
-unsigned char __SL_G_MAC[] = "__SL_G_MAC";
-unsigned char __SL_G_PFW[] = "__SL_G_PFW";
-unsigned char __SL_G_TWS[] = "__SL_G_TWS";
-
-unsigned char __SL_G_WF0[] = "__SL_G_WF0";
-unsigned char __SL_G_WF1[] = "__SL_G_WF1";
-unsigned char __SL_G_WF2[] = "__SL_G_WF2";
-unsigned char __SL_G_WF3[] = "__SL_G_WF3";
-unsigned char __SL_G_WF4[] = "__SL_G_WF4";
-unsigned char __SL_G_WF5[] = "__SL_G_WF5";
-unsigned char __SL_G_WF6[] = "__SL_G_WF6";
-unsigned char __SL_G_WF7[] = "__SL_G_WF7";
-unsigned char __SL_G_WF8[] = "__SL_G_WF8";
-unsigned char __SL_G_WF9[] = "__SL_G_WF9";
-
-unsigned char __SL_G_WRT[] = "__SL_G_WRT";
-unsigned char __SL_G_CWF[] = "__SL_G_CWF";
-unsigned char __SL_G_CSF[] = "__SL_G_CSF";
-unsigned char __SL_G_AGF[] = "__SL_G_AGF";
-unsigned char __SL_G_MDE[] = "__SL_G_MDE";
-unsigned char __SL_G_PDE[] = "__SL_G_PDE";
-unsigned char __SL_G_PDF[] = "__SL_G_PDF";
-unsigned char __SL_G_SWF[] = "__SL_G_SWF";
-unsigned char __SL_G_WPW[] = "__SL_G_WPW";
-
-unsigned char __SL_G_RSP[] = "__SL_G_RSP";
-
-unsigned char __SL_P_WST[] = "__SL_P_WST";
-unsigned char __SL_P_WPW[] = "__SL_P_WPW";
-
-char ssid_buf[10][64] = {0};
 web_product web_product_msg;
 web_errcode web_errcode_msg;
 web_post_wifi web_post_wifi_msg;
@@ -254,6 +209,8 @@ void UpdateTimeTask(void *pvParameters);
 void ApikeyGetTask(void *pvParameters);
 
 extern void WlanAPMode(void *pvParameters);
+
+#define TAG "MAIN"
 
 /*******************************************************************************
 //read product 
@@ -480,11 +437,14 @@ CC3200 设置睡眠时间，是在运行中设置，设置后立即即使，如�
 // #ifdef CHECK_WATER_MARK
 
 // 	// osi_SyncObjSignalFromISR(&xBinary14);
-// 	vTaskNotifyGiveFromISR(xBinary14, NULL);
+// 		if (xBinary14 != NULL)
+// vTaskNotifyGiveFromISR(xBinary14, NULL);
 
 // #endif
 
 // 	// osi_SyncObjSignalFromISR(&xBinary9); //check Task start time
+// 		if (xBinary9 != NULL)
+// if (xBinary9 != NULL)
 // 	vTaskNotifyGiveFromISR(xBinary9, NULL);
 
 // 	return;
@@ -623,7 +583,8 @@ void Timer_Check_Task(void *pvParameters)
 			fn_dp_t = now_unix_t + fn_dp;
 
 			// osi_SyncObjSignalFromISR(&xBinary0); //Data Post Task
-			vTaskNotifyGiveFromISR(xBinary0, NULL);
+			if (xBinary0 != NULL)
+				vTaskNotifyGiveFromISR(xBinary0, NULL);
 
 			osi_at24c08_write(FN_DP_T_ADDR, fn_dp_t);
 		}
@@ -641,7 +602,8 @@ void Timer_Check_Task(void *pvParameters)
 			fn_th_t = now_unix_t + fn_th;
 
 			// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
-			vTaskNotifyGiveFromISR(xBinary2, NULL);
+			if (xBinary2 != NULL)
+				vTaskNotifyGiveFromISR(xBinary2, NULL);
 
 			osi_at24c08_write(FN_TH_T_ADDR, fn_th_t);
 		}
@@ -659,7 +621,8 @@ void Timer_Check_Task(void *pvParameters)
 			fn_light_t = now_unix_t + fn_light;
 
 			// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
-			vTaskNotifyGiveFromISR(xBinary3, NULL);
+			if (xBinary3 != NULL)
+				vTaskNotifyGiveFromISR(xBinary3, NULL);
 
 			osi_at24c08_write(FN_LIGHT_T_ADDR, fn_light_t);
 		}
@@ -678,7 +641,8 @@ void Timer_Check_Task(void *pvParameters)
 			fn_mag_t = now_unix_t + fn_mag;
 
 			// osi_SyncObjSignalFromISR(&xBinary4); //Magnetic Sensor Task
-			vTaskNotifyGiveFromISR(xBinary4, NULL);
+			if (xBinary4 != NULL)
+				vTaskNotifyGiveFromISR(xBinary4, NULL);
 
 			osi_at24c08_write(FN_MAG_T_ADDR, fn_mag_t);
 		}
@@ -697,7 +661,8 @@ void Timer_Check_Task(void *pvParameters)
 			fn_ext_t = now_unix_t + fn_ext;
 
 			// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
-			vTaskNotifyGiveFromISR(xBinary6, NULL);
+			if (xBinary6 != NULL)
+				vTaskNotifyGiveFromISR(xBinary6, NULL);
 
 			osi_at24c08_write(FN_EXT_T_ADDR, fn_ext_t);
 		}
@@ -715,7 +680,8 @@ void Timer_Check_Task(void *pvParameters)
 			fn_battery_t = now_unix_t + fn_battery;
 
 			// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-			vTaskNotifyGiveFromISR(xBinary7, NULL);
+			if (xBinary7 != NULL)
+				vTaskNotifyGiveFromISR(xBinary7, NULL);
 
 			osi_at24c08_write(FN_BATTERY_T_ADDR, fn_battery_t);
 		}
@@ -816,7 +782,8 @@ void Usb_Mode_Task(void *pvParameters)
 			usb_status_val = 1;
 
 			// osi_SyncObjSignalFromISR(&xBinary15);
-			vTaskNotifyGiveFromISR(xBinary15, NULL);
+			if (xBinary15 != NULL)
+				vTaskNotifyGiveFromISR(xBinary15, NULL);
 		}
 	}
 	else
@@ -833,7 +800,8 @@ void Usb_Mode_Task(void *pvParameters)
 			data_post = 1; //Save Then Post Data
 
 			// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-			vTaskNotifyGiveFromISR(xBinary7, NULL);
+			if (xBinary7 != NULL)
+				vTaskNotifyGiveFromISR(xBinary7, NULL);
 		}
 		else
 		{
@@ -851,7 +819,8 @@ void Usb_Mode_Task(void *pvParameters)
 		data_post = 1; //Save Then Post Data
 
 		// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-		vTaskNotifyGiveFromISR(xBinary7, NULL);
+		if (xBinary7 != NULL)
+			vTaskNotifyGiveFromISR(xBinary7, NULL);
 
 		for (;;)
 		{
@@ -871,7 +840,8 @@ void Usb_Mode_Task(void *pvParameters)
 				data_post = 1; //Save Then Post Data
 
 				// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-				vTaskNotifyGiveFromISR(xBinary7, NULL);
+				if (xBinary7 != NULL)
+					vTaskNotifyGiveFromISR(xBinary7, NULL);
 
 				break;
 			}
@@ -906,14 +876,17 @@ static void WakeUp_Process(void)
 	if (!gpio_get_level(BUTTON_PIN))
 	{
 		// osi_SyncObjSignalFromISR(&xBinary1);
-		vTaskNotifyGiveFromISR(xBinary1, NULL);
+		if (xBinary1 != NULL)
+			vTaskNotifyGiveFromISR(xBinary1, NULL);
 	}
 
 	// if (!GPIOPinRead(ACCE_PORT, ACCE_PIN)) //Acceleration Sensor GPIO Wake Up
 	if (!gpio_get_level(ACCE_SRC_WKUP))
 	{
 		// osi_SyncObjSignalFromISR(&xBinary12);
-		vTaskNotifyGiveFromISR(xBinary12, NULL);
+		if (xBinary12 != NULL)
+			if (xBinary12 != NULL)
+				vTaskNotifyGiveFromISR(xBinary12, NULL);
 	}
 
 #ifdef MAG_SENSOR
@@ -922,7 +895,8 @@ static void WakeUp_Process(void)
 		if (door_status)
 		{
 			// osi_SyncObjSignalFromISR(&xBinary4);
-			vTaskNotifyGiveFromISR(xBinary4, NULL);
+			if (xBinary4 != NULL)
+				vTaskNotifyGiveFromISR(xBinary4, NULL);
 		}
 	}
 	else
@@ -930,13 +904,15 @@ static void WakeUp_Process(void)
 		if (!door_status)
 		{
 			// osi_SyncObjSignalFromISR(&xBinary4);
-			vTaskNotifyGiveFromISR(xBinary4, NULL);
+			if (xBinary4 != NULL)
+				vTaskNotifyGiveFromISR(xBinary4, NULL);
 		}
 	}
 #endif
 
 	// osi_SyncObjSignalFromISR(&xBinary9); //Start TIMERA0 Interrupt Task
-	vTaskNotifyGiveFromISR(xBinary9, NULL);
+	if (xBinary9 != NULL)
+		vTaskNotifyGiveFromISR(xBinary9, NULL);
 }
 
 /*******************************************************************************
@@ -950,37 +926,37 @@ void MainTask_Create(void *pvParameters)
 
 	osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
 
-	xTaskCreate(Timer_Check_Task, "Timer_Check_Task", 384, NULL, 9, &xBinary9); //Check Tasks Operate Time
+	my_xTaskCreate(Timer_Check_Task, "Timer_Check_Task", 384, NULL, 9, &xBinary9); //Check Tasks Operate Time
 
-	xTaskCreate(TempHumiSensorTask, "TempHumiSensorTask", 448, NULL, 7, &xBinary2); //Create TempHumiSensor Task
+	my_xTaskCreate(TempHumiSensorTask, "TempHumiSensorTask", 448, NULL, 7, &xBinary2); //Create TempHumiSensor Task
 
-	xTaskCreate(LightSensorTask, "LightSensorTask", 512, NULL, 7, &xBinary3); //Create LightSensor Task
+	my_xTaskCreate(LightSensorTask, "LightSensorTask", 512, NULL, 7, &xBinary3); //Create LightSensor Task
 
 #ifdef MAG_SENSOR
-	xTaskCreate(MagneticSensorTask, "MagneticSensorTask", 320, NULL, 7, &xBinary4); //Create MagneticSensor Task
+	my_xTaskCreate(MagneticSensorTask, "MagneticSensorTask", 320, NULL, 7, &xBinary4); //Create MagneticSensor Task
 #endif
 
-	xTaskCreate(AcceSensor_Int_Task, "AcceSensor_Int_Task", 384, NULL, 5, &xBinary12); //Create System_Interrupt_Task
+	my_xTaskCreate(AcceSensor_Int_Task, "AcceSensor_Int_Task", 384, NULL, 5, &xBinary12); //Create System_Interrupt_Task
 
-	xTaskCreate(AccelerationSensorTask, "AccelerationSensorTask", 512, NULL, 5, &xBinary5); //Create AccelerationSensor Task
+	my_xTaskCreate(AccelerationSensorTask, "AccelerationSensorTask", 512, NULL, 5, &xBinary5); //Create AccelerationSensor Task
 
-	xTaskCreate(ExtTempMeasureTask, "ExtTempMeasureTask", 512, NULL, 7, &xBinary6); //Create Noise Measure Task
+	my_xTaskCreate(ExtTempMeasureTask, "ExtTempMeasureTask", 512, NULL, 7, &xBinary6); //Create Noise Measure Task
 
-	xTaskCreate(PowerMeasureTask, "PowerMeasureTask", 448, NULL, 7, &xBinary7); //Create Power Measure Task
+	my_xTaskCreate(PowerMeasureTask, "PowerMeasureTask", 448, NULL, 7, &xBinary7); //Create Power Measure Task
 
-	xTaskCreate(DataSaveTask, "DataSaveTask", 1024, NULL, 7, NULL); //Create Data Save Task
+	my_xTaskCreate(DataSaveTask, "DataSaveTask", 1024, NULL, 7, NULL); //Create Data Save Task
 
-	xTaskCreate(DataPostTask, "DataPostTask", 2048, NULL, 5, &xBinary0); //Create Data Post Task
+	my_xTaskCreate(DataPostTask, "DataPostTask", 2048, NULL, 5, &xBinary0); //Create Data Post Task
 
-	xTaskCreate(Green_LedControl_Task, "Green_LedControl_Task", 192, NULL, 5, NULL); //Create Green Led control task
+	my_xTaskCreate(Green_LedControl_Task, "Green_LedControl_Task", 192, NULL, 5, NULL); //Create Green Led control task
 
-	xTaskCreate(Bell_Control_Task, "Bell_Control_Task", 192, NULL, 5, NULL); //Create bell control task
+	my_xTaskCreate(Bell_Control_Task, "Bell_Control_Task", 192, NULL, 5, NULL); //Create bell control task
 
-	xTaskCreate(Memory_DeleteTask, "Memory_DeleteTask", 640, NULL, 5, &xBinary11); //Create Memory_DeleteTask
+	my_xTaskCreate(Memory_DeleteTask, "Memory_DeleteTask", 640, NULL, 5, &xBinary11); //Create Memory_DeleteTask
 
 #ifdef CHECK_WATER_MARK
 
-	xTaskCreate(WaterMark_Check, "WaterMark_Check", 512, NULL, 7, &xBinary14);
+	my_xTaskCreate(WaterMark_Check, "WaterMark_Check", 512, NULL, 7, &xBinary14);
 
 #endif
 
@@ -1004,10 +980,12 @@ void ApikeyGetTask(void *pvParameters)
 	APIGET_TASK_END_FLAG = 1;
 
 	// osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
-	vTaskNotifyGiveFromISR(xBinary13, NULL);
+	if (xBinary13 != NULL)
+		vTaskNotifyGiveFromISR(xBinary13, NULL);
 
 	// osi_SyncObjSignalFromISR(&xBinary17); //Start LED Blink When Internet Application
-	vTaskNotifyGiveFromISR(xBinary17, NULL);
+	if (xBinary17 != NULL)
+		vTaskNotifyGiveFromISR(xBinary17, NULL);
 
 	for (re_try = 0; re_try < RETRY_TIME_OUT; re_try++)
 	{
@@ -1069,24 +1047,28 @@ void ApikeyGetTask(void *pvParameters)
 		data_post = 1; //Save Then Post Data
 
 		// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
-		vTaskNotifyGiveFromISR(xBinary2, NULL);
+		if (xBinary2 != NULL)
+			vTaskNotifyGiveFromISR(xBinary2, NULL);
 
 		// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
-		vTaskNotifyGiveFromISR(xBinary3, NULL);
+		if (xBinary3 != NULL)
+			vTaskNotifyGiveFromISR(xBinary3, NULL);
 
 		// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
-		vTaskNotifyGiveFromISR(xBinary6, NULL);
+		if (xBinary6 != NULL)
+			vTaskNotifyGiveFromISR(xBinary6, NULL);
 
 		// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-		vTaskNotifyGiveFromISR(xBinary7, NULL);
+		if (xBinary7 != NULL)
+			vTaskNotifyGiveFromISR(xBinary7, NULL);
 
-		xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
+		my_xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
 	}
 	else
 	{
 		osi_System_ERROR_Save(API_GET_FLR_ERR); //save ERROR data
 
-		xTaskCreate(st_Green_Red_LedFlashed_Task, "st_Green_Red_LedFlashed_Task", 256, NULL, 7, NULL); //Create Red Led Flash task
+		my_xTaskCreate(st_Green_Red_LedFlashed_Task, "st_Green_Red_LedFlashed_Task", 256, NULL, 7, NULL); //Create Red Led Flash task
 	}
 
 	vTaskDelete(NULL);
@@ -1109,10 +1091,12 @@ void UpdateTimeTask(void *pvParameters)
 	UPDATETIME_TASK_END_FLAG = 1;
 
 	// osi_SyncObjSignalFromISR(&xBinary13);
-	vTaskNotifyGiveFromISR(xBinary13, NULL);
+	if (xBinary13 != NULL)
+		vTaskNotifyGiveFromISR(xBinary13, NULL);
 
 	// osi_SyncObjSignalFromISR(&xBinary17); //Start LED Blink
-	vTaskNotifyGiveFromISR(xBinary17, NULL);
+	if (xBinary17 != NULL)
+		vTaskNotifyGiveFromISR(xBinary17, NULL);
 
 	sys_run_time = 0; //clear wifi post time
 
@@ -1161,18 +1145,22 @@ void UpdateTimeTask(void *pvParameters)
 	data_post = 1; //Save Then Post Data
 
 	// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
-	vTaskNotifyGiveFromISR(xBinary2, NULL);
+	if (xBinary2 != NULL)
+		vTaskNotifyGiveFromISR(xBinary2, NULL);
 
 	// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
-	vTaskNotifyGiveFromISR(xBinary3, NULL);
+	if (xBinary3 != NULL)
+		vTaskNotifyGiveFromISR(xBinary3, NULL);
 
 	// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
-	vTaskNotifyGiveFromISR(xBinary6, NULL);
+	if (xBinary6 != NULL)
+		vTaskNotifyGiveFromISR(xBinary6, NULL);
 
 	// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-	vTaskNotifyGiveFromISR(xBinary7, NULL);
+	if (xBinary7 != NULL)
+		vTaskNotifyGiveFromISR(xBinary7, NULL);
 
-	xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
+	my_xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
 
 	// osi_TaskDelete(&upd_TaskHandle); //delete Update Time TASK
 	vTaskDelete(NULL);
@@ -1188,7 +1176,7 @@ void Usb_Set_Mode(void *pvParameters)
 	// osi_SyncObjWait(&xBinary16, -1); //Wait Task Operation Message
 	ulTaskNotifyTake(pdTRUE, -1);
 
-	xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
+	my_xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
 
 	MAP_UtilsDelay(80000); //delay about 6ms
 
@@ -1218,7 +1206,8 @@ void F_ResetTask(void *pvParameters)
 	//  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
 	// APIGET_TASK_END_FLAG = 1;
 	// // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
-	// vTaskNotifyGiveFromISR(xBinary13, NULL);
+	// 	if (xBinary13 != NULL)
+	vTaskNotifyGiveFromISR(xBinary13, NULL);
 	// sl_Start(0, 0, 0); //start the simple link
 	// sl_NetCfgGet(SL_MAC_ADDRESS_GET, NULL, &buf_len, (unsigned char *)mac_addr);
 	// sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
@@ -1270,13 +1259,13 @@ void F_ResetTask(void *pvParameters)
 
 	if (gpio_get_level(USB_PIN)) //read usb pin status
 	{
-		xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, NULL); //Create Wait Uart Set Task task
+		my_xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, NULL); //Create Wait Uart Set Task task
 	}
 	else
 	{
-		// xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
+		// my_xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
 
-		xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
+		my_xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
 	}
 
 	f_reset_status = 0;
@@ -1311,11 +1300,11 @@ void ButtonPush_Int_Task(void *pvParameters)
 				{
 					SET_RED_LED_ON(); //RED LED ON
 
-					vTaskSuspendAll(); //disable the tasks
+					//vTaskSuspendAll(); //disable the tasks
 
 					bell_makeSound(2000);
 
-					xTaskResumeAll(); //enable all tasks
+					//xTaskResumeAll(); //enable all tasks
 				}
 
 				MAP_UtilsDelay(200000); //delay about 15ms
@@ -1340,16 +1329,20 @@ void ButtonPush_Int_Task(void *pvParameters)
 				data_post = 1; //Save Then Post Data
 
 				// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
-				vTaskNotifyGiveFromISR(xBinary2, NULL);
+				if (xBinary2 != NULL)
+					vTaskNotifyGiveFromISR(xBinary2, NULL);
 
 				// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
-				vTaskNotifyGiveFromISR(xBinary3, NULL);
+				if (xBinary3 != NULL)
+					vTaskNotifyGiveFromISR(xBinary3, NULL);
 
 				// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
-				vTaskNotifyGiveFromISR(xBinary6, NULL);
+				if (xBinary6 != NULL)
+					vTaskNotifyGiveFromISR(xBinary6, NULL);
 
 				// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-				vTaskNotifyGiveFromISR(xBinary7, NULL);
+				if (xBinary7 != NULL)
+					vTaskNotifyGiveFromISR(xBinary7, NULL);
 			}
 		}
 	}
@@ -1592,21 +1585,22 @@ void System_Variables_Init(void)
 *******************************************************************************/
 static short Read_System_Status(uint8_t *read_flag, uint8_t buf_len)
 {
-	uint8_t n_read;
+	// uint8_t n_read;
 
-	for (n_read = 0; n_read < RETRY_TIME_OUT; n_read++)
+	// for (n_read = 0; n_read < RETRY_TIME_OUT; n_read++)
+	// {
+	at24c08_ReadData(SYSTEM_STATUS_ADDR, read_flag, buf_len, 1); //Read System Status
+	ESP_LOGI(TAG, "%d,%s", __LINE__, read_flag);
+	if ((!strcmp((char const *)read_flag, SYSTEM_ON)) || (!strcmp((char const *)read_flag, SYSTEM_OFF))) //Check System Status
 	{
-		at24c08_ReadData(SYSTEM_STATUS_ADDR, read_flag, buf_len, 1); //Read System Status
-
-		if ((!strcmp((char const *)read_flag, SYSTEM_ON)) || (!strcmp((char const *)read_flag, SYSTEM_OFF))) //Check System Status
-		{
-			return SUCCESS;
-		}
-		else
-		{
-			MAP_UtilsDelay(2000000); //Delay About 150ms
-		}
+		return SUCCESS;
 	}
+	else
+	{
+		ESP_LOGE(TAG, "%d,%s", __LINE__, read_flag);
+		MAP_UtilsDelay(2000000); //Delay About 150ms
+	}
+	// }
 
 	return FAILURE;
 }
@@ -1653,6 +1647,12 @@ void WatchDog_Reset_Task(void *pvParameters)
 	}
 }
 
+void My_Idle_Task(void *arg)
+{
+	printf("Entering deep sleep\n");
+	esp_deep_sleep_start();
+}
+
 esp_timer_handle_t http_timer_suspend_p = NULL;
 void timer_app_cb(void *arg);
 esp_timer_handle_t timer_app_handle = NULL; //定时器句柄
@@ -1679,7 +1679,8 @@ void timer_app_cb(void *arg)
 		uint8_t msg_wd_val = MSG_WD_VAL;
 
 		// osi_MsgQWrite(&xQueue3, &msg_wd_val, OSI_NO_WAIT); //send to WatchDog and SleepTimer message
-		xQueueSendFromISR(xQueue3, &msg_wd_val, NULL);
+		// xQueueSendFromISR(xQueue3, &msg_wd_val, NULL);
+		xQueueSend(xQueue3, &msg_wd_val, 0);
 	}
 
 	if (sleep_time > 0)
@@ -1691,7 +1692,8 @@ void timer_app_cb(void *arg)
 			slp_t_ms = 0;
 
 			// osi_SyncObjSignalFromISR(&xBinary9); //check Task start time
-			vTaskNotifyGiveFromISR(xBinary9, NULL);
+			if (xBinary9 != NULL)
+				vTaskNotifyGiveFromISR(xBinary9, NULL);
 		}
 	}
 }
@@ -1706,18 +1708,21 @@ static void IRAM_ATTR gpio_isr_handler(void *arg)
 	if (gpio_num == BUTTON_PIN) //button push wake up
 	{
 		// osi_SyncObjSignalFromISR(&xBinary1);
-		vTaskNotifyGiveFromISR(xBinary1, NULL);
+		if (xBinary1 != NULL)
+			vTaskNotifyGiveFromISR(xBinary1, NULL);
 	}
 
 	else if (gpio_num == ACCE_SRC_WKUP) //acce sensor int
 	{
 		// osi_SyncObjSignalFromISR(&xBinary12);
-		vTaskNotifyGiveFromISR(xBinary12, NULL);
+		if (xBinary12 != NULL)
+			vTaskNotifyGiveFromISR(xBinary12, NULL);
 	}
 	else if (gpio_num == USB_SRC_WKUP) //usb int wake up
 	{
 		// osi_SyncObjSignalFromISR(&xBinary15);
-		vTaskNotifyGiveFromISR(xBinary15, NULL);
+		if (xBinary15 != NULL)
+			vTaskNotifyGiveFromISR(xBinary15, NULL);
 	}
 }
 /*******************************************************************************
@@ -1743,8 +1748,8 @@ void PinMuxConfig(void)
 
 	gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
 	gpio_isr_handler_add(BUTTON_PIN, gpio_isr_handler, (void *)BUTTON_PIN);
-	gpio_isr_handler_add(USB_SRC_WKUP, gpio_isr_handler, (void *)USB_SRC_WKUP);
-	gpio_isr_handler_add(ACCE_SRC_WKUP, gpio_isr_handler, (void *)ACCE_SRC_WKUP);
+	// gpio_isr_handler_add(USB_SRC_WKUP, gpio_isr_handler, (void *)USB_SRC_WKUP);
+	// gpio_isr_handler_add(ACCE_SRC_WKUP, gpio_isr_handler, (void *)ACCE_SRC_WKUP);
 }
 
 /*******************************************************************************
@@ -1762,10 +1767,14 @@ void app_main(void)
 	//所有IO初始化
 	PinMuxConfig(); //Configure The Peripherals
 
+	bell_makeSound(2000);
+
 	//ESP 在任务中初始化
 	I2C_Init(); //Configuring IIC Bus
 
 	UserSpiInit(); //Configuring SPI Bus
+
+	xTaskCreate(My_Idle_Task, "My_Idle_Task", 2048, NULL, 1, NULL);
 
 #ifdef USE_WD
 	// 看门狗 esp在系统中设置
@@ -1820,24 +1829,24 @@ void app_main(void)
 			// Set_GPIO_AsWkUp();								  //setting GPIO wakeup source
 			// lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE); //lowest power mode
 
-			xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 256, NULL, 1, &xBinary13);		   //Create Check Tasks End
-			xTaskCreate(Green_LedFlashed_Task, "Green_LedFlashed_Task", 256, NULL, 7, &xBinary17); //Create GREEN LED Blink Task When Internet Application
-			xTaskCreate(Usb_Mode_Task, "Usb_Mode_Task", 320, NULL, 3, &xBinary15);				   //USB Mode Led Flash Task
-			xTaskCreate(WatchDog_Reset_Task, "WatchDog_Reset_Task", 384, NULL, 9, NULL);		   //Watch Dog Rest Task
-																								   //      xTaskCreate( UartRevTask, "UartRevTask",512,NULL, 9, NULL );  //Create UART recive Task
-			xTaskCreate(UartParseTask, "UartParseTask", 1280, NULL, 7, NULL);					   //Create UART Task
-			xTaskCreate(ButtonPush_Int_Task, "ButtonPush_Int_Task", 384, NULL, 9, NULL);		   //Create Button Interrupt_Task
+			my_xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 256, NULL, 1, &xBinary13);			  //Create Check Tasks End
+			my_xTaskCreate(Green_LedFlashed_Task, "Green_LedFlashed_Task", 256, NULL, 7, &xBinary17); //Create GREEN LED Blink Task When Internet Application
+			my_xTaskCreate(Usb_Mode_Task, "Usb_Mode_Task", 320, NULL, 3, &xBinary15);				  //USB Mode Led Flash Task
+			my_xTaskCreate(WatchDog_Reset_Task, "WatchDog_Reset_Task", 384, NULL, 9, NULL);			  //Watch Dog Rest Task
+																									  //      my_xTaskCreate( UartRevTask, "UartRevTask",512,NULL, 9, NULL );  //Create UART recive Task
+			my_xTaskCreate(UartParseTask, "UartParseTask", 1280, NULL, 7, NULL);					  //Create UART Task
+			my_xTaskCreate(ButtonPush_Int_Task, "ButtonPush_Int_Task", 384, NULL, 9, &xBinary1);	  //Create Button Interrupt_Task
 
 			if (ulResetCause == ESP_RST_POWERON) // Check the wakeup source-except PRCM_HIB_EXIT
 			{
 				MAP_UtilsDelay(10000000); //Delay About 750ms
 				Green_Led_Bell_Sound(200);
-				Sensors_Init();														//Senosrs Init when power on
-				xTaskCreate(UpdateTimeTask, "UpdateTimeTask", 1024, NULL, 7, NULL); //Create UpdataTime Task
+				Sensors_Init();														   //Senosrs Init when power on
+				my_xTaskCreate(UpdateTimeTask, "UpdateTimeTask", 1024, NULL, 7, NULL); //Create UpdataTime Task
 			}
 			else
 			{
-				xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
+				my_xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
 			}
 
 			goto end;
@@ -1890,23 +1899,23 @@ void app_main(void)
 																								   // Set_GPIO_AsWkUp();														// setting GPIO wakeup source
 																								   // lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE);						//Setting up HIBERNATE mode for the system
 
-				xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 256, NULL, 1, &xBinary13);		   //Create Check Tasks End
-				xTaskCreate(Green_LedFlashed_Task, "Green_LedFlashed_Task", 256, NULL, 7, &xBinary17); //Create GREEN LED Blink Task When Internet Application
-				xTaskCreate(Usb_Mode_Task, "Usb_Mode_Task", 320, NULL, 3, &xBinary15);				   //USB Mode Led Flash Task
-				xTaskCreate(WatchDog_Reset_Task, "WatchDog_Reset_Task", 384, NULL, 9, NULL);		   //Watch Dog Rest Task
-																									   //        xTaskCreate( UartRevTask, "UartRevTask",512,NULL, 9, NULL );  //Create UART recive Task
-				xTaskCreate(UartParseTask, "UartParseTask", 1280, NULL, 7, NULL);					   //Create UART Task
-				xTaskCreate(ButtonPush_Int_Task, "ButtonPush_Int_Task", 384, NULL, 9, NULL);		   //Create Button Interrupt_Task
+				my_xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 256, NULL, 1, &xBinary13);			  //Create Check Tasks End
+				my_xTaskCreate(Green_LedFlashed_Task, "Green_LedFlashed_Task", 256, NULL, 7, &xBinary17); //Create GREEN LED Blink Task When Internet Application
+				my_xTaskCreate(Usb_Mode_Task, "Usb_Mode_Task", 320, NULL, 3, &xBinary15);				  //USB Mode Led Flash Task
+				my_xTaskCreate(WatchDog_Reset_Task, "WatchDog_Reset_Task", 384, NULL, 9, NULL);			  //Watch Dog Rest Task
+																										  //        my_xTaskCreate( UartRevTask, "UartRevTask",512,NULL, 9, NULL );  //Create UART recive Task
+				my_xTaskCreate(UartParseTask, "UartParseTask", 1280, NULL, 7, NULL);					  //Create UART Task
+				my_xTaskCreate(ButtonPush_Int_Task, "ButtonPush_Int_Task", 384, NULL, 9, &xBinary1);	  //Create Button Interrupt_Task
 
 				if (push_time >= 100) //Push Time>=15s,Creat Factory Reset Task
 				{
-					xTaskCreate(F_ResetTask, "FactoryResetTask", 768, NULL, 7, NULL); //Device Factory Reset
+					my_xTaskCreate(F_ResetTask, "FactoryResetTask", 768, NULL, 7, NULL); //Device Factory Reset
 					goto end;
 				}
 				else if (push_time >= 50) //15s<=Push Time>=5s
 				{
-					// xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
-					xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
+					// my_xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
+					my_xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
 					goto end;
 				}
 				else //7.5s<=Push Time>=3s,Power ON
@@ -1918,34 +1927,34 @@ void app_main(void)
 						at24c08_ReadData(DATAURI_FLAG_ADDR, read_flag2, sizeof(read_flag2), 1); //read datapost addr
 						if ((!strcmp((char const *)read_flag, "SSID")) && (!strcmp((char const *)read_flag2, DATA_URI)))
 						{
-							xTaskCreate(UpdateTimeTask, "UpdateTimeTask", 1024, NULL, 7, NULL); //Create UpdataTime Task
+							my_xTaskCreate(UpdateTimeTask, "UpdateTimeTask", 1024, NULL, 7, NULL); //Create UpdataTime Task
 							goto end;
 						}
 						else if (!strcmp((char const *)read_flag, "SSID"))
 						{
-							xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
+							my_xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
 							goto end;
 						}
 						else if (!strcmp((char const *)read_flag2, DATA_URI))
 						{
-							xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
+							my_xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
 							goto end;
 						}
 						else if (gpio_get_level(USB_PIN)) //read usb pin status
 						{
-							xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, NULL); //Create Wait Uart Set Task task
+							my_xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, NULL); //Create Wait Uart Set Task task
 							goto end;
 						}
 						else //check ssid addr
 						{
-							// xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
-							xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
+							// my_xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
+							my_xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
 							goto end;
 						}
 					}
 					else //check product id
 					{
-						xTaskCreate(F_ResetTask, "FactoryResetTask", 768, NULL, 7, NULL); //Device Factory Reset
+						my_xTaskCreate(F_ResetTask, "FactoryResetTask", 768, NULL, 7, NULL); //Device Factory Reset
 						goto end;
 					}
 				}
@@ -1959,6 +1968,7 @@ void app_main(void)
 	}
 	else //except system ON and OFF
 	{
+		ESP_LOGE(TAG, "except system ON and OFF");
 		at24c08_write(LAST_UPDATE_TIME_ADDR, 0); //reset last update time
 		SET_Power_OFF();						 //Power OFF
 		goto end;
