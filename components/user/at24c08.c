@@ -214,7 +214,7 @@ void at24c08_WriteData(uint16_t addr, uint8_t *buf, uint8_t size, bool end_flag)
     // ESP_LOGI(TAG, "%d", __LINE__);
     // at24c08_WritePage(addr, (uint8_t *)"!\0", 2); //end flag '!'
     at24c08_write_byte(addr, (uint8_t)'!');
-    ESP_LOGI(TAG, "%d,%c", __LINE__, at24c08_read_byte(addr));
+    // ESP_LOGI(TAG, "%d,%c", __LINE__, at24c08_read_byte(addr));
   }
 }
 
@@ -276,28 +276,23 @@ static short I2C_ReadAt24c08(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, u
 void at24c08_ReadData(uint16_t reg_addr, uint8_t *buf, uint8_t size, bool end_flag)
 {
   // uint8_t n_try;
-
-  // for (n_try = 0; n_try < RETRY_TIME_OUT; n_try++)
-  // {
-  if (I2C_ReadAt24c08(at24c08_addr0 + reg_addr / 256, reg_addr % 256, buf, size, end_flag) == SUCCESS)
+  if (size > 0)
   {
-    if (end_flag)
+    if (I2C_ReadAt24c08(at24c08_addr0 + reg_addr / 256, reg_addr % 256, buf, size, end_flag) == SUCCESS)
     {
-      if (strtok((char *)buf, "!") == NULL)
+      if (end_flag)
       {
-        ESP_LOGE(TAG, "%d,%s", __LINE__, buf);
-        // return FAILURE;
+        if (strtok((char *)buf, "!") == NULL)
+        {
+          ESP_LOGE(TAG, "%d,%s", __LINE__, buf);
+        }
       }
     }
-
-    ESP_LOGI(TAG, "%d,%s", __LINE__, buf);
-    // break;
+    else
+    {
+      ESP_LOGE(TAG, "%d,reg_addr=%d", __LINE__, reg_addr);
+    }
   }
-  else
-  {
-    MAP_UtilsDelay(40000); //delay about 3ms
-  }
-  // }
 }
 
 /*******************************************************************************

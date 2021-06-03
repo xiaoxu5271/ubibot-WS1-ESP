@@ -29,6 +29,7 @@ extern volatile unsigned long POST_NUM;
 extern volatile unsigned long DELETE_ADDR, POST_ADDR, WRITE_ADDR;
 extern SemaphoreHandle_t xMutex1; //Used for SPI Lock
 extern TaskHandle_t xBinary11;    //For Memory Delete Task
+extern SemaphoreHandle_t xMutex7;
 
 /*******************************************************************************
 //Erase Flash 4k memory
@@ -41,11 +42,11 @@ static void N25q_EraseMemory(unsigned long addr)
 
   xSemaphoreGive(xMutex1); //SPI Semaphore Give
 
-  portENTER_CRITICAL(0); //enter critical
-
+  // portENTER_CRITICAL(0); //enter critical
+  xSemaphoreTake(xMutex7, -1);
   DELETE_ADDR += 4096;
-
-  portEXIT_CRITICAL(0); //exit critical
+  // portEXIT_CRITICAL(0); //exit critical
+  xSemaphoreGive(xMutex7);
 
   if (DELETE_ADDR >= Memory_Max_Addr)
   {

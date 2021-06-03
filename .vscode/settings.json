@@ -60,7 +60,9 @@
                 "pcf8563.h": "c",
                 "esp_spi_flash.h": "c",
                 "cstring": "c",
-                "ratio": "c"
+                "ratio": "c",
+                "accesensortask.h": "c",
+                "temphumitask.h": "c"
         },
         "idf.flashType": "UART",
 }

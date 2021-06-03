@@ -27,6 +27,7 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 #include "esp_log.h"
@@ -94,6 +95,7 @@ SemaphoreHandle_t xMutex2; //Used for SimpleLink Lock
 SemaphoreHandle_t xMutex3; //Used for cJSON Lock
 SemaphoreHandle_t xMutex4; //Used for UART Lock
 SemaphoreHandle_t xMutex5; //Used for Post_Data_Buffer Lock
+SemaphoreHandle_t xMutex7; //Used for data save num lock
 #ifdef USE_LCD
 SemaphoreHandle_t xMutex6; //Used for Ht1621 LCD Driver
 #endif
@@ -129,7 +131,6 @@ volatile bool POST_TASK_END_FLAG = 0;
 volatile bool UPDATETIME_TASK_END_FLAG = 0;
 volatile bool APIGET_TASK_END_FLAG = 0;
 volatile bool AP_MODE_END_FLAG = 0;
-volatile bool MAIN_INIT_FLAG = 0;
 
 volatile bool ap_mode_status = 0;
 volatile bool f_reset_status = 0;
@@ -787,8 +788,9 @@ void WaterMark_Check(void *pvParameters)
 *******************************************************************************/
 void Usb_Mode_Task(void *pvParameters)
 {
-	uint16_t usb_t;
+	xEventGroupClearBits(Task_Group, USB_MODE_BIT);
 
+	uint16_t usb_t;
 	usb_status = osi_at24c08_read_byte(USB_FLAG_ADDR);
 	ESP_LOGI(TAG, "%d,usb_status=%d", __LINE__, usb_status);
 
@@ -834,6 +836,7 @@ void Usb_Mode_Task(void *pvParameters)
 	{
 		// osi_SyncObjWait(&xBinary15, -1); //Wait Task Operation Message
 		ulTaskNotifyTake(pdTRUE, -1);
+		xEventGroupClearBits(Task_Group, USB_MODE_BIT);
 		ESP_LOGI(TAG, "%d", __LINE__);
 
 		usb_t = 0;
@@ -846,7 +849,7 @@ void Usb_Mode_Task(void *pvParameters)
 
 		while (1)
 		{
-			ESP_LOGI(TAG, "%d", __LINE__);
+			// ESP_LOGI(TAG, "%d", __LINE__);
 			usb_t += 1;
 
 			Green_Led_Flashed(1, 4); //Green Led Flashed 0.6s
@@ -877,15 +880,13 @@ void Usb_Mode_Task(void *pvParameters)
 				// ESP_LOGI(TAG, "%d,usb_t=%d", __LINE__, usb_t);
 			}
 
-			// if (usb_t >= USB_TIME_OUT)
-			// {
-			// 	usb_status = 1;
-
-			// 	osi_at24c08_write_byte(USB_FLAG_ADDR, usb_status);
-
-			// 	break;
-			// }
-
+			if (usb_t >= USB_TIME_OUT)
+			{
+				usb_status = 1;
+				osi_at24c08_write_byte(USB_FLAG_ADDR, usb_status);
+				xEventGroupSetBits(Task_Group, USB_MODE_BIT);
+				break;
+			}
 			sys_run_time = 0; //clear system time out
 		}
 	}
@@ -946,37 +947,29 @@ static void WakeUp_Process(void)
 *******************************************************************************/
 void MainTask_Create(void *pvParameters)
 {
-	MAIN_INIT_FLAG = 1;
+	xEventGroupClearBits(Task_Group, MAIN_INIT_BIT);
 	if (xBinary13 != NULL)
 		vTaskNotifyGiveFromISR(xBinary13, NULL);
 
-	ESP_LOGI(TAG, "%d", __LINE__);
 	// OsiTaskHandle Create_TaskHandle = NULL;
 
 	WakeUp_Process(); //GPIO or Timer Wake Up Process
-	ESP_LOGI(TAG, "%d", __LINE__);
 
 	osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
-	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(Timer_Check_Task, "Timer_Check_Task", 384, NULL, 9, &xBinary9); //Check Tasks Operate Time
-	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(TempHumiSensorTask, "TempHumiSensorTask", 448, NULL, 7, &xBinary2); //Create TempHumiSensor Task
-	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(LightSensorTask, "LightSensorTask", 512, NULL, 7, &xBinary3); //Create LightSensor Task
-	ESP_LOGI(TAG, "%d", __LINE__);
 
 #ifdef MAG_SENSOR
 	my_xTaskCreate(MagneticSensorTask, "MagneticSensorTask", 320, NULL, 7, &xBinary4); //Create MagneticSensor Task
 #endif
 
 	my_xTaskCreate(AcceSensor_Int_Task, "AcceSensor_Int_Task", 384, NULL, 5, &xBinary12); //Create System_Interrupt_Task
-	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(AccelerationSensorTask, "AccelerationSensorTask", 512, NULL, 5, &xBinary5); //Create AccelerationSensor Task
-	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(ExtTempMeasureTask, "ExtTempMeasureTask", 512, NULL, 7, &xBinary6); //Create Noise Measure Task
 
@@ -997,8 +990,9 @@ void MainTask_Create(void *pvParameters)
 	my_xTaskCreate(WaterMark_Check, "WaterMark_Check", 512, NULL, 7, &xBinary14);
 
 #endif
-	MAIN_INIT_FLAG = 0;
 	ESP_LOGI(TAG, "%d", __LINE__);
+
+	xEventGroupSetBits(Task_Group, MAIN_INIT_BIT);
 	// osi_TaskDelete(&Create_TaskHandle); //delete Main Task_Create TASK
 	vTaskDelete(NULL);
 }
@@ -1010,7 +1004,7 @@ void ApikeyGetTask(void *pvParameters)
 {
 	uint8_t re_try;
 	int lRetVal = -1;
-
+	xEventGroupClearBits(Task_Group, APIGET_TASK_BIT);
 	//  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
 	xSemaphoreTake(xMutex2, -1);
 
@@ -1109,7 +1103,7 @@ void ApikeyGetTask(void *pvParameters)
 
 		my_xTaskCreate(st_Green_Red_LedFlashed_Task, "st_Green_Red_LedFlashed_Task", 256, NULL, 7, NULL); //Create Red Led Flash task
 	}
-
+	xEventGroupSetBits(Task_Group, APIGET_TASK_BIT);
 	vTaskDelete(NULL);
 }
 
@@ -1118,11 +1112,9 @@ void ApikeyGetTask(void *pvParameters)
 *******************************************************************************/
 void UpdateTimeTask(void *pvParameters)
 {
-	// ;
+	xEventGroupClearBits(Task_Group, UPDATETIME_TASK_BIT);
 	int lRetVal = -1;
-	// OsiTaskHandle upd_TaskHandle = NULL;
 
-	//  xSemaphoreTake(xMutex2, -1); //SimpleLink Semaphore Take
 	xSemaphoreTake(xMutex2, -1);
 
 	update_time = 1;
@@ -1202,6 +1194,8 @@ void UpdateTimeTask(void *pvParameters)
 	my_xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
 
 	// osi_TaskDelete(&upd_TaskHandle); //delete Update Time TASK
+	xEventGroupSetBits(Task_Group, UPDATETIME_TASK_BIT);
+
 	vTaskDelete(NULL);
 }
 
@@ -1227,6 +1221,7 @@ void Usb_Set_Mode(void *pvParameters)
 *******************************************************************************/
 void F_ResetTask(void *pvParameters)
 {
+	ESP_LOGI(TAG, "%d,F_ResetTask", __LINE__);
 	// char mac_addr[6] = {0};
 	// uint8_t buf_len = sizeof(mac_addr);
 	uint8_t rest_buf[64];
@@ -1298,7 +1293,7 @@ void F_ResetTask(void *pvParameters)
 
 	if (gpio_get_level(USB_PIN)) //read usb pin status
 	{
-		my_xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, NULL); //Create Wait Uart Set Task task
+		my_xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, &xBinary16); //Create Wait Uart Set Task task
 	}
 	else
 	{
@@ -1457,27 +1452,31 @@ void Tasks_Check_Task(void *pvParameters)
 	for (;;)
 	{
 		// osi_SyncObjWait(&xBinary13, -1); //Wait Task Start Message
-		ulTaskNotifyTake(pdTRUE, -1);
+		// ulTaskNotifyTake(pdTRUE, -1);
+		// w_t_out = 0;
 
-		w_t_out = 0;
-
-		while (POST_TASK_END_FLAG ||
-			   UPDATETIME_TASK_END_FLAG ||
-			   APIGET_TASK_END_FLAG ||
-			   AP_MODE_END_FLAG ||
-			   MAIN_INIT_FLAG)
+		// while (POST_TASK_END_FLAG ||
+		// 	   UPDATETIME_TASK_END_FLAG ||
+		// 	   APIGET_TASK_END_FLAG ||
+		// 	   AP_MODE_END_FLAG ||
+		// 	   MAIN_INIT_FLAG)
+		// {
+		// 	if (w_t_out++ > 3000000) //15min time out
+		// 	{
+		// 		break;
+		// 	}
+		// 	MAP_UtilsDelay(4000); //delay about 0.3ms
+		// }
+		if ((xEventGroupWaitBits(Task_Group, ALL_BIT, false, true, 15 * 60000 / portTICK_RATE_MS) & ALL_BIT) == ALL_BIT)
 		{
-			if (w_t_out++ > 3000000) //15min time out
-			{
-				break;
-			}
-			MAP_UtilsDelay(4000); //delay about 0.3ms
+			ESP_LOGI(TAG, "%d", __LINE__);
+			Enter_Sleep();
 		}
 
-		if (cg_data_led)
-		{
-			SET_GREEN_LED_OFF();
-		}
+		// if (cg_data_led)
+		// {
+		// 	SET_GREEN_LED_OFF();
+		// }
 	}
 }
 
@@ -1486,14 +1485,11 @@ void Tasks_Check_Task(void *pvParameters)
 *******************************************************************************/
 static void Sensors_Init(void)
 {
-
 	OPT3001_Init(); //opt3001 light sensor init
 
 	ADXL345_Init(); //adxl245 sensor init
 
-	flash_set_val = w25q_Init();
-
-	while (w25q_Init() != SUCCESS) //Init W25Q128 Memory Chip
+	while ((flash_set_val = w25q_Init()) != SUCCESS) //Init W25Q128 Memory Chip
 	{
 		ESP_LOGE(TAG, "%d", __LINE__);
 		Red_Led_Flashed(1, 6); //check flash
@@ -1596,6 +1592,9 @@ void System_Variables_Init(void)
 
 	Net_sta_group = xEventGroupCreate();
 
+	Task_Group = xEventGroupCreate();
+	xEventGroupSetBits(Task_Group, ALL_BIT); //初始化参数 保证默认状态下 可进入休眠
+
 	// osi_LockObjCreate(&xMutex1); //Used For SPI Bus
 	xMutex1 = xSemaphoreCreateMutex();
 
@@ -1610,6 +1609,8 @@ void System_Variables_Init(void)
 
 	// osi_LockObjCreate(&xMutex5); //Used for Post_Data_Buffer Lock
 	xMutex5 = xSemaphoreCreateMutex();
+
+	xMutex7 = xSemaphoreCreateMutex();
 
 	// osi_MsgQCreate(&xQueue0, "xQueue0", sizeof(SensorMessage), 8); //create queue used for sensor value save
 	xQueue0 = xQueueCreate(8, sizeof(SensorMessage));
@@ -1691,6 +1692,7 @@ void WatchDog_Reset_Task(void *pvParameters)
 		if (sys_run_time > SYS_RUN_TIMEOUT)
 		{
 			// Reboot_MCU(); //Reboot the MCU
+			ESP_LOGE(TAG, "%d,sys_run_time =%d TIME OUT", __LINE__, sys_run_time);
 			esp_restart();
 		}
 	}
@@ -1700,7 +1702,7 @@ void My_Idle_Task(void *arg)
 {
 	while (1)
 	{
-		ESP_LOGI(TAG, "%d,My_Idle_Task", __LINE__);
+		// ESP_LOGI(TAG, "%d,My_Idle_Task", __LINE__);
 		// Enter_Sleep();
 	}
 }
@@ -1879,7 +1881,6 @@ void app_main(void)
 			// Set_GPIO_AsWkUp();								  //setting GPIO wakeup source
 			// lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE); //lowest power mode
 
-			my_xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 256, NULL, 1, &xBinary13);			  //Create Check Tasks End
 			my_xTaskCreate(Green_LedFlashed_Task, "Green_LedFlashed_Task", 256, NULL, 7, &xBinary17); //Create GREEN LED Blink Task When Internet Application
 			my_xTaskCreate(Usb_Mode_Task, "Usb_Mode_Task", 512, NULL, 3, &xBinary15);				  //USB Mode Led Flash Task
 			my_xTaskCreate(WatchDog_Reset_Task, "WatchDog_Reset_Task", 384, NULL, 9, NULL);			  //Watch Dog Rest Task
@@ -1943,15 +1944,18 @@ void app_main(void)
 
 			if (push_time >= 20) //Push Time>=3s or USB connected Power ON
 			{
+				Set_Uart_Int_Source(); //Set Peripheral Interrupt Source
+				init_wifi();		   //wifi初始化
+
 				SET_GREEN_LED_OFF();															   //LED OFF
 				at24c08_WriteData(SYSTEM_STATUS_ADDR, (uint8_t *)SYSTEM_ON, strlen(SYSTEM_ON), 1); //Restor The System Status-ON
 				Sensors_Init();																	   //Senosrs Init when power on
 																								   // Set_GPIO_AsWkUp();														// setting GPIO wakeup source
 																								   // lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE);						//Setting up HIBERNATE mode for the system
 
-				my_xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 256, NULL, 1, &xBinary13);			  //Create Check Tasks End
+				// my_xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 512, NULL, 1, &xBinary13);			  //Create Check Tasks End
 				my_xTaskCreate(Green_LedFlashed_Task, "Green_LedFlashed_Task", 256, NULL, 7, &xBinary17); //Create GREEN LED Blink Task When Internet Application
-				my_xTaskCreate(Usb_Mode_Task, "Usb_Mode_Task", 320, NULL, 3, &xBinary15);				  //USB Mode Led Flash Task
+				my_xTaskCreate(Usb_Mode_Task, "Usb_Mode_Task", 512, NULL, 3, &xBinary15);				  //USB Mode Led Flash Task
 				my_xTaskCreate(WatchDog_Reset_Task, "WatchDog_Reset_Task", 384, NULL, 9, NULL);			  //Watch Dog Rest Task
 																										  //        my_xTaskCreate( UartRevTask, "UartRevTask",512,NULL, 9, NULL );  //Create UART recive Task
 				my_xTaskCreate(UartParseTask, "UartParseTask", 1280, NULL, 7, NULL);					  //Create UART Task
@@ -1964,13 +1968,13 @@ void app_main(void)
 				}
 				else if (push_time >= 50) //15s<=Push Time>=5s
 				{
-					// my_xTaskCreate(Httpserver_parse_Task, "Httpserver_parse_Task", 896, NULL, 5, NULL);
 					my_xTaskCreate(WlanAPMode, "WlanAPMode", 1600, NULL, 7, NULL); //Create Wlan AP Mode task
 					goto end;
 				}
 				else //7.5s<=Push Time>=3s,Power ON
 				{
 					at24c08_ReadData(PRODUCTURI_FLAG_ADDR, read_flag, sizeof(read_flag), 1); //read product id flag
+					ESP_LOGI(TAG, "%d,read_flag:%s", __LINE__, read_flag);
 					if (!strcmp((char const *)read_flag, PRODUCT_URI))
 					{
 						at24c08_ReadData(SSID_FLAG_ADDR, read_flag, sizeof(read_flag), 1);		//read ssid flag
@@ -1992,7 +1996,7 @@ void app_main(void)
 						}
 						else if (gpio_get_level(USB_PIN)) //read usb pin status
 						{
-							my_xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, NULL); //Create Wait Uart Set Task task
+							my_xTaskCreate(Usb_Set_Mode, "Usb_Set_Mode", 512, NULL, 5, &xBinary16); //Create Wait Uart Set Task task
 							goto end;
 						}
 						else //check ssid addr
@@ -2012,6 +2016,7 @@ void app_main(void)
 			else //push time<3s
 			{
 				SET_Power_OFF(); //Power OFF
+				Enter_Sleep();
 				goto end;
 			}
 		}
@@ -2033,8 +2038,9 @@ end:
 	// osi_start(); // Start the task scheduler
 	// xTaskCreate(My_Idle_Task, "My_Idle_Task", 2048, NULL, 1, NULL);
 	esp_timer_create(&timer_app_arg, &timer_app_handle);
-	esp_timer_start_periodic(timer_app_handle, 10000); //创建定时器，单位us，定时10ms
+	esp_timer_start_periodic(timer_app_handle, 100000); //创建定时器，单位us，定时10ms
 
+	my_xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 512, NULL, 1, &xBinary13); //Create Check Tasks End
 	// for (;;)
 	; //never go here
 }

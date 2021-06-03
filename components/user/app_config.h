@@ -9,10 +9,9 @@
 void init_wifi(void);
 void start_user_wifi(void);
 void stop_user_wifi(void);
-void Net_Switch(void);
-void Scan_Wifi(void);
+// void Net_Switch(void);
 void start_softap(void);
-bool Check_Wifi(uint8_t *ssid, int8_t *rssi);
+// bool Check_Wifi(uint8_t *ssid, int8_t *rssi);
 // int Tcp_Send(int sock, char *Send_Buff);
 
 void osi_Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf); //Scan WIFI LIST with locked//

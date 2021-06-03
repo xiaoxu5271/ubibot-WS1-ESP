@@ -101,11 +101,13 @@ void Green_Led_Flashed(uint8_t n_time, uint8_t on_time)
   {
     SET_GREEN_LED_ON();
 
-    MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    // MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
 
     SET_GREEN_LED_OFF();
 
-    MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    // MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
   }
 }
 
@@ -120,11 +122,13 @@ void Red_Led_Flashed(uint8_t n_time, uint8_t on_time)
   {
     SET_RED_LED_ON();
 
-    MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    // MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
 
     SET_RED_LED_OFF();
 
-    MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    // MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
   }
 }
 
@@ -135,7 +139,7 @@ void Red_Led_On_time(uint8_t on_time)
 {
   SET_RED_LED_ON();
 
-  MAP_UtilsDelay(on_time * 2000000); //n*150ms
+  vTaskDelay(on_time * 150 / portTICK_RATE_MS);
 
   SET_RED_LED_OFF();
 }
@@ -153,13 +157,13 @@ void Green_Red_Led_Flashed(uint8_t n_time, uint8_t on_time)
 
     SET_RED_LED_OFF();
 
-    MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
 
     SET_RED_LED_ON();
 
     SET_GREEN_LED_OFF();
 
-    MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
   }
 }
 
@@ -176,13 +180,13 @@ static void st_Green_Red_Led_Flashed(uint8_t n_time, uint8_t on_time)
 
     SET_RED_LED_ON(); //Set Red Led On
 
-    MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
 
     SET_GREEN_LED_OFF(); //Set Green Led Off
 
     SET_RED_LED_OFF(); //Set Red Led Off
 
-    MAP_UtilsDelay(on_time * 2000000); //n*150ms
+    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
   }
 }
 

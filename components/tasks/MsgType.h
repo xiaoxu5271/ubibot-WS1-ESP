@@ -13,6 +13,7 @@
 /*-------------------------------- Includes ----------------------------------*/
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
 
 //#define DEBUG
 //#define DEBUG_SAVE      //memory save debug
@@ -110,6 +111,16 @@
 
 #define my_xTaskCreate(TaskCode, Name, Depth, Parameters, Priority, Handle) xTaskCreate(TaskCode, Name, Depth * 5, Parameters, Priority + 2, Handle)
 
+EventGroupHandle_t Task_Group;
+#define POST_TASK_BIT (1 << 0)       //网络连接
+#define UPDATETIME_TASK_BIT (1 << 1) //激活
+#define APIGET_TASK_BIT (1 << 2)     //WIFI MQTT 启动
+#define AP_MODE_END_BIT (1 << 3)     //ec20 MQTT 启动
+#define MAIN_INIT_BIT (1 << 4)       //WIFI MQTT 连接
+#define USB_MODE_BIT (1 << 5)        //WIFI MQTT 连接
+
+#define ALL_BIT (POST_TASK_BIT | UPDATETIME_TASK_BIT | APIGET_TASK_BIT | AP_MODE_END_BIT | MAIN_INIT_BIT | USB_MODE_BIT)
+
 typedef struct
 {
   uint8_t sensornum; //sensor field
@@ -150,8 +161,6 @@ typedef union
   float cali_val;
   unsigned long cali_buf;
 } f_cali;
-
-#define HTTPSERVER_WIFI_MSG 1
 
 /*******************************************************************************
                                       END         

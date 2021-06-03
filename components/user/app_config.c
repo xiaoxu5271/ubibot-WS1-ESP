@@ -183,6 +183,7 @@ void stop_user_wifi(void)
 
 void start_user_wifi(void)
 {
+    ESP_LOGI(TAG, "%d,start_user_wifi", __LINE__);
     uint8_t read_len;
     if ((xEventGroupGetBits(Net_sta_group) & WIFI_S_BIT) == WIFI_S_BIT)
     {
@@ -208,6 +209,7 @@ void start_user_wifi(void)
         read_len = sizeof(SSID_NAME);
     }
     osi_at24c08_ReadData(SSID_ADDR, (uint8_t *)SSID_NAME, read_len, 0); //Read Wifi SSID
+    ESP_LOGI(TAG, "%d,SSID_NAME=%s", __LINE__, SSID_NAME);
     read_len = osi_at24c08_read_byte(PASSWORD_LEN_ADDR);
     if (read_len > sizeof(PASS_WORD))
     {
@@ -225,91 +227,7 @@ void start_user_wifi(void)
     ESP_LOGI(TAG, "turn on WIFI! \n");
 }
 
-//网络状态转换任务
-void Net_Switch(void)
-{
-    xEventGroupClearBits(Net_sta_group, ACTIVED_BIT);
-    xEventGroupClearBits(Net_sta_group, CONNECTED_BIT);
-
-    start_user_wifi();
-    // Start_W_Mqtt();
-}
-
 #define DEFAULT_SCAN_LIST_SIZE 5
-void Scan_Wifi(void)
-{
-    uint16_t number = DEFAULT_SCAN_LIST_SIZE;
-    wifi_ap_record_t ap_info[DEFAULT_SCAN_LIST_SIZE];
-    uint16_t ap_count = 0;
-    memset(ap_info, 0, sizeof(ap_info));
-    scan_flag = true;
-    start_user_wifi();
-
-    if (esp_wifi_scan_start(NULL, true) != ESP_OK)
-    {
-        ESP_LOGE(TAG, "esp_wifi_scan_start FAIL");
-        scan_flag = false;
-        return;
-    }
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number, ap_info));
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
-    ESP_LOGI(TAG, "Total APs scanned = %u", ap_count);
-    for (int i = 0; (i < DEFAULT_SCAN_LIST_SIZE) && (i < ap_count); i++)
-    {
-        // ESP_LOGI(TAG, "SSID \t\t%s", ap_info[i].ssid);
-        // ESP_LOGI(TAG, "RSSI \t\t%d", ap_info[i].rssi);
-        // ESP_LOGI(TAG, "Channel \t\t%d\n", ap_info[i].primary);
-        //串口响应
-        printf("{\"SSID\":\"%s\",\"rssi\":%d}\n\r", ap_info[i].ssid, ap_info[i].rssi);
-    }
-
-    scan_flag = false;
-
-    start_user_wifi();
-}
-
-bool Check_Wifi(uint8_t *ssid, int8_t *rssi)
-{
-    wifi_scan_time_t scanTime = {
-
-        .passive = 5000};
-
-    wifi_scan_config_t scanConf = {
-        .ssid = NULL,
-        .bssid = NULL,
-        .channel = 0,
-        .show_hidden = false,
-        .scan_type = 1,
-        .scan_time = scanTime};
-
-    bool ret = true;
-    uint16_t number = 1;
-    wifi_ap_record_t ap_info[1];
-    uint16_t ap_count = 0;
-    memset(ap_info, 0, sizeof(ap_info));
-    scan_flag = true;
-    start_user_wifi();
-
-    if (esp_wifi_scan_start(NULL, true) != ESP_OK)
-    {
-        ret = false;
-        ESP_LOGE(TAG, "esp_wifi_scan_start FAIL");
-        scan_flag = false;
-        return ret;
-    }
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number, ap_info));
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
-    ESP_LOGI(TAG, "Total APs scanned = %u", ap_count);
-
-    memcpy(ssid, ap_info[0].ssid, sizeof(ap_info[0].ssid));
-    *rssi = ap_info[0].rssi;
-
-    scan_flag = false;
-
-    start_user_wifi();
-
-    return ret;
-}
 
 /* The examples use WiFi configuration that you can set via project configuration menu.
 
@@ -523,6 +441,7 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
     memset(SSID_NAME, 0, sizeof(SSID_NAME));
 
     read_len = osi_at24c08_read_byte(SSID_LEN_ADDR);
+    ESP_LOGI(TAG, "%d,read_len=%d", __LINE__, read_len);
 
     if (read_len > sizeof(SSID_NAME))
     {
@@ -530,6 +449,7 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
     }
 
     osi_at24c08_ReadData(SSID_ADDR, (uint8_t *)SSID_NAME, read_len, 0); //Read Wifi SSID
+    ESP_LOGI(TAG, "%d,SSID_NAME=%s", __LINE__, SSID_NAME);
 
     start_user_wifi();
 
@@ -742,6 +662,8 @@ extern void ApikeyGetTask(void *pvParameters);
 *******************************************************************************/
 void WlanAPMode(void *pvParameters)
 {
+    ESP_LOGI(TAG, "%d,WlanAPMode", __LINE__);
+    xEventGroupClearBits(Task_Group, AP_MODE_END_BIT);
     char Readflag[16];
     int lRetVal = -1;
     int sock;
@@ -848,9 +770,7 @@ void WlanAPMode(void *pvParameters)
             {
                 UartGet[len] = '\0';
 
-#ifdef DEBUG
-                osi_UartPrint_Mul("TCP_Recivebuffer:", UartGet);
-#endif
+                ESP_LOGI(TAG, "TCP_Recivebuffer:%s", UartGet);
 
                 lRetVal = ParseTcpUartCmd(UartGet);
                 if (lRetVal < 0)
@@ -939,6 +859,8 @@ void WlanAPMode(void *pvParameters)
             break;
         }
     }
+    //等待TCP发送
+    vTaskDelay(1000 / portTICK_RATE_MS);
 
     // }
 
@@ -985,6 +907,6 @@ CLEAN_UP:
     ap_mode_status = 0;
     AP_MODE_END_FLAG = 0;
     // MAP_UtilsDelay(80000); //delay about 6ms
-
+    xEventGroupSetBits(Task_Group, AP_MODE_END_BIT);
     vTaskDelete(NULL);
 }

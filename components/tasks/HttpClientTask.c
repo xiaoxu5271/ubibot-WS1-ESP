@@ -69,6 +69,7 @@ extern SemaphoreHandle_t xMutex2; //Used for SimpleLink Lock
 extern SemaphoreHandle_t xMutex3; //Used for cJSON Lock
 extern SemaphoreHandle_t xMutex4; //Used for UART Lock
 extern SemaphoreHandle_t xMutex5; //Used for Post_Data_Buffer Lock
+extern SemaphoreHandle_t xMutex7;
 
 extern char SEC_TYPE[8];
 extern char SSID_NAME[32];
@@ -322,9 +323,8 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
 
   MemoryAddr = POST_ADDR;
 
-#ifdef DEBUG
-  osi_UartPrint("{\"feeds\":[");
-#endif
+  // osi_UartPrint("{\"feeds\":[");
+
   lRetVal = esp_http_client_write(httpClient, "{\"feeds\":[", strlen("{\"feeds\":["));
   if (lRetVal < 0)
   {
@@ -346,9 +346,7 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
 
     MemoryAddr = Read_PostDataBuffer(MemoryAddr, Post_Data_Buffer, post_data_sum, EndFlag); //read post data
 
-#ifdef DEBUG
     ESP_LOGI(TAG, "%s", Post_Data_Buffer);
-#endif
 
     lRetVal = esp_http_client_write(httpClient, (const char *)Post_Data_Buffer, (strlen(Post_Data_Buffer))); //Send POST data/body
     //  xSemaphoreGive(xMutex5); //Post_Data_Buffer Semaphore Give
@@ -360,9 +358,8 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
     }
   }
 
-#ifdef DEBUG
   ESP_LOGI(TAG, "%s", wifi_buf);
-#endif
+
   lRetVal = esp_http_client_write(httpClient, wifi_buf, strlen(wifi_buf)); //wifi_buf
   if (lRetVal < 0)
   {
@@ -376,10 +373,9 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
     ESP_LOGE(TAG, "Write failed %d", __LINE__);
     return lRetVal;
   }
-#ifdef DEBUG
+
   ESP_LOGI(TAG, "%s", calidata_buf);
   // osi_UartPrint(calidata_buf);
-#endif
 
   lRetVal = esp_http_client_write(httpClient, calidata_buf, strlen(calidata_buf)); //Send calidata_buf
   if (lRetVal < 0)
@@ -388,10 +384,9 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
     return lRetVal;
   }
 
-#ifdef DEBUG
   // osi_UartPrint(status_buf);
   ESP_LOGI(TAG, "%s", status_buf);
-#endif
+
   lRetVal = esp_http_client_write(httpClient, status_buf, strlen(status_buf)); //Send status data
   if (lRetVal < 0)
   {
@@ -419,6 +414,7 @@ esp_http_client_handle_t Http_Init_Fun(void)
   osi_at24c08_ReadData(HOST_ADDR, (uint8_t *)HOST_NAME, sizeof(HOST_NAME), 1); //read the host name
 
   Host_Flag = osi_at24c08_read_byte(HOST_NAME_IP_ADDR);
+  ESP_LOGI(TAG, "%d,Host_Flag=%d", __LINE__, Host_Flag);
   if (Host_Flag == 0)
   {
     dns_fault = 0;
@@ -509,11 +505,10 @@ void PostAddrChage(unsigned long data_num, unsigned long end_addr)
 
   if (POST_NUM >= data_num)
   {
-    portENTER_CRITICAL(0); //enter critical
-
+    // portENTER_CRITICAL(0); //enter critical
+    xSemaphoreTake(xMutex7, -1);
     POST_NUM -= data_num;
-
-    portEXIT_CRITICAL(0); //exit critical
+    xSemaphoreGive(xMutex7);
   }
   else
   {
@@ -575,6 +570,7 @@ void DataPostTask(void *pvParameters)
     sys_run_time = 0; //clear wifi post time
 
     POST_TASK_END_FLAG = 1;
+    xEventGroupClearBits(Task_Group, POST_TASK_BIT);
 
     // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
     if (xBinary13 != NULL)
@@ -708,6 +704,7 @@ void DataPostTask(void *pvParameters)
     }
 
     POST_TASK_END_FLAG = 0;
+    xEventGroupSetBits(Task_Group, POST_TASK_BIT);
 
     //  xSemaphoreGive(xMutex2); //SimpleLink Semaphore Give
     xSemaphoreGive(xMutex2);

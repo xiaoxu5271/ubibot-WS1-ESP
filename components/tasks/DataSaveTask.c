@@ -36,6 +36,7 @@ extern TaskHandle_t xBinary0;     //For DataPostTask interrupt
 extern TaskHandle_t xBinary11;    //For Memory Delete Task
 extern SemaphoreHandle_t xMutex1; //Used for SPI Lock
 extern SemaphoreHandle_t xMutex3; //Used for cJSON Lock
+extern SemaphoreHandle_t xMutex7;
 
 extern volatile uint8_t save_addr_flag;
 extern volatile bool data_post; //need post data immediately
@@ -63,13 +64,15 @@ static void DataSave(char *buffer, uint8_t size)
 
   xSemaphoreGive(xMutex1); //SPI Semaphore Give
 
-  portENTER_CRITICAL(0); //enter critical
+  // portENTER_CRITICAL(0); //enter critical
+  xSemaphoreTake(xMutex7, -1);
 
   POST_NUM += 1;
 
   WRITE_ADDR += 1 + size; //End with a '!'
 
-  portEXIT_CRITICAL(0); //exit crtitcal
+  // portEXIT_CRITICAL(0); //exit crtitcal
+  xSemaphoreGive(xMutex7);
 
   if (save_addr_flag == 0)
   {
