@@ -129,7 +129,7 @@ volatile bool POST_TASK_END_FLAG = 0;
 volatile bool UPDATETIME_TASK_END_FLAG = 0;
 volatile bool APIGET_TASK_END_FLAG = 0;
 volatile bool AP_MODE_END_FLAG = 0;
-volatile bool AP_MODE_END = 0;
+volatile bool MAIN_INIT_FLAG = 0;
 
 volatile bool ap_mode_status = 0;
 volatile bool f_reset_status = 0;
@@ -264,6 +264,23 @@ void Web_read_product(void)
 	osi_at24c08_ReadData(SSID_ADDR, (uint8_t *)SSID_NAME, read_len, 0); //Read Wifi SSID
 
 	snprintf((char *)web_product_msg.ssid, sizeof(web_product_msg.ssid), "{\"ssid\":\"%s\"}", SSID_NAME);
+}
+
+/*******************************************************************************
+//Enter_Sleep
+*******************************************************************************/
+void Enter_Sleep(void)
+{
+	const int ext_wakeup_pin_1 = BUTTON_PIN;
+	const uint64_t ext_wakeup_pin_1_mask = 1ULL << ext_wakeup_pin_1;
+	const int ext_wakeup_pin_2 = ACCE_SRC_WKUP;
+	const uint64_t ext_wakeup_pin_2_mask = 1ULL << ext_wakeup_pin_2;
+
+	printf("Enabling EXT1 wakeup on pins GPIO%d, GPIO%d\n", ext_wakeup_pin_1, ext_wakeup_pin_2);
+	esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask, ESP_EXT1_WAKEUP_ALL_LOW);
+
+	printf("Entering deep sleep\n");
+	esp_deep_sleep_start();
 }
 
 /*******************************************************************************
@@ -773,6 +790,7 @@ void Usb_Mode_Task(void *pvParameters)
 	uint16_t usb_t;
 
 	usb_status = osi_at24c08_read_byte(USB_FLAG_ADDR);
+	ESP_LOGI(TAG, "%d,usb_status=%d", __LINE__, usb_status);
 
 	if (usb_status == 0)
 	{
@@ -780,10 +798,13 @@ void Usb_Mode_Task(void *pvParameters)
 		if (gpio_get_level(USB_PIN))
 		{
 			usb_status_val = 1;
-
+			ESP_LOGI(TAG, "%d", __LINE__);
 			// osi_SyncObjSignalFromISR(&xBinary15);
 			if (xBinary15 != NULL)
+			{
+				ESP_LOGI(TAG, "%d", __LINE__);
 				vTaskNotifyGiveFromISR(xBinary15, NULL);
+			}
 		}
 	}
 	else
@@ -813,6 +834,7 @@ void Usb_Mode_Task(void *pvParameters)
 	{
 		// osi_SyncObjWait(&xBinary15, -1); //Wait Task Operation Message
 		ulTaskNotifyTake(pdTRUE, -1);
+		ESP_LOGI(TAG, "%d", __LINE__);
 
 		usb_t = 0;
 
@@ -822,8 +844,9 @@ void Usb_Mode_Task(void *pvParameters)
 		if (xBinary7 != NULL)
 			vTaskNotifyGiveFromISR(xBinary7, NULL);
 
-		for (;;)
+		while (1)
 		{
+			ESP_LOGI(TAG, "%d", __LINE__);
 			usb_t += 1;
 
 			Green_Led_Flashed(1, 4); //Green Led Flashed 0.6s
@@ -831,6 +854,8 @@ void Usb_Mode_Task(void *pvParameters)
 			// if (!gpio_get_level(USB_PIN)) //read usb pin status
 			if (!gpio_get_level(USB_PIN))
 			{
+				ESP_LOGI(TAG, "%d", __LINE__);
+
 				usb_status = 0;
 
 				usb_status_val = 0;
@@ -848,16 +873,18 @@ void Usb_Mode_Task(void *pvParameters)
 			else
 			{
 				usb_status_val = 1;
+				// printf("%d,usb_t=%d\r\n", __LINE__, usb_t);
+				// ESP_LOGI(TAG, "%d,usb_t=%d", __LINE__, usb_t);
 			}
 
-			if (usb_t >= USB_TIME_OUT)
-			{
-				usb_status = 1;
+			// if (usb_t >= USB_TIME_OUT)
+			// {
+			// 	usb_status = 1;
 
-				osi_at24c08_write_byte(USB_FLAG_ADDR, usb_status);
+			// 	osi_at24c08_write_byte(USB_FLAG_ADDR, usb_status);
 
-				break;
-			}
+			// 	break;
+			// }
 
 			sys_run_time = 0; //clear system time out
 		}
@@ -885,8 +912,7 @@ static void WakeUp_Process(void)
 	{
 		// osi_SyncObjSignalFromISR(&xBinary12);
 		if (xBinary12 != NULL)
-			if (xBinary12 != NULL)
-				vTaskNotifyGiveFromISR(xBinary12, NULL);
+			vTaskNotifyGiveFromISR(xBinary12, NULL);
 	}
 
 #ifdef MAG_SENSOR
@@ -920,25 +946,37 @@ static void WakeUp_Process(void)
 *******************************************************************************/
 void MainTask_Create(void *pvParameters)
 {
+	MAIN_INIT_FLAG = 1;
+	if (xBinary13 != NULL)
+		vTaskNotifyGiveFromISR(xBinary13, NULL);
+
+	ESP_LOGI(TAG, "%d", __LINE__);
 	// OsiTaskHandle Create_TaskHandle = NULL;
 
 	WakeUp_Process(); //GPIO or Timer Wake Up Process
+	ESP_LOGI(TAG, "%d", __LINE__);
 
 	osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
+	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(Timer_Check_Task, "Timer_Check_Task", 384, NULL, 9, &xBinary9); //Check Tasks Operate Time
+	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(TempHumiSensorTask, "TempHumiSensorTask", 448, NULL, 7, &xBinary2); //Create TempHumiSensor Task
+	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(LightSensorTask, "LightSensorTask", 512, NULL, 7, &xBinary3); //Create LightSensor Task
+	ESP_LOGI(TAG, "%d", __LINE__);
 
 #ifdef MAG_SENSOR
 	my_xTaskCreate(MagneticSensorTask, "MagneticSensorTask", 320, NULL, 7, &xBinary4); //Create MagneticSensor Task
 #endif
 
 	my_xTaskCreate(AcceSensor_Int_Task, "AcceSensor_Int_Task", 384, NULL, 5, &xBinary12); //Create System_Interrupt_Task
+	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(AccelerationSensorTask, "AccelerationSensorTask", 512, NULL, 5, &xBinary5); //Create AccelerationSensor Task
+	ESP_LOGI(TAG, "%d", __LINE__);
 
 	my_xTaskCreate(ExtTempMeasureTask, "ExtTempMeasureTask", 512, NULL, 7, &xBinary6); //Create Noise Measure Task
 
@@ -959,7 +997,8 @@ void MainTask_Create(void *pvParameters)
 	my_xTaskCreate(WaterMark_Check, "WaterMark_Check", 512, NULL, 7, &xBinary14);
 
 #endif
-
+	MAIN_INIT_FLAG = 0;
+	ESP_LOGI(TAG, "%d", __LINE__);
 	// osi_TaskDelete(&Create_TaskHandle); //delete Main Task_Create TASK
 	vTaskDelete(NULL);
 }
@@ -1207,7 +1246,7 @@ void F_ResetTask(void *pvParameters)
 	// APIGET_TASK_END_FLAG = 1;
 	// // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
 	// 	if (xBinary13 != NULL)
-	vTaskNotifyGiveFromISR(xBinary13, NULL);
+	// vTaskNotifyGiveFromISR(xBinary13, NULL);
 	// sl_Start(0, 0, 0); //start the simple link
 	// sl_NetCfgGet(SL_MAC_ADDRESS_GET, NULL, &buf_len, (unsigned char *)mac_addr);
 	// sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
@@ -1298,6 +1337,7 @@ void ButtonPush_Int_Task(void *pvParameters)
 
 				if (Button_Push == 200)
 				{
+					ESP_LOGI(TAG, "%d", __LINE__);
 					SET_RED_LED_ON(); //RED LED ON
 
 					//vTaskSuspendAll(); //disable the tasks
@@ -1318,6 +1358,8 @@ void ButtonPush_Int_Task(void *pvParameters)
 
 				for (;;) //never loop
 				{
+					Enter_Sleep();
+					// vTaskDelay(1000 / portTICK_RATE_MS);
 					//休眠
 					// cc_idle_task_pm(); //Enter Hiberate Mode
 				}
@@ -1419,7 +1461,11 @@ void Tasks_Check_Task(void *pvParameters)
 
 		w_t_out = 0;
 
-		while (POST_TASK_END_FLAG || UPDATETIME_TASK_END_FLAG || APIGET_TASK_END_FLAG || AP_MODE_END_FLAG)
+		while (POST_TASK_END_FLAG ||
+			   UPDATETIME_TASK_END_FLAG ||
+			   APIGET_TASK_END_FLAG ||
+			   AP_MODE_END_FLAG ||
+			   MAIN_INIT_FLAG)
 		{
 			if (w_t_out++ > 3000000) //15min time out
 			{
@@ -1449,6 +1495,7 @@ static void Sensors_Init(void)
 
 	while (w25q_Init() != SUCCESS) //Init W25Q128 Memory Chip
 	{
+		ESP_LOGE(TAG, "%d", __LINE__);
 		Red_Led_Flashed(1, 6); //check flash
 	}
 
@@ -1623,6 +1670,8 @@ void WatchDog_Reset_Task(void *pvParameters)
 
 			slp_t_ms = 0;
 
+			ESP_LOGI(TAG, "%d,sleep_time=%ld", __LINE__, sleep_time);
+
 			//设置休眠唤醒时间，执行即计时，非休眠则进入回调
 			// rtc_result = SetTimerAsWkUp(sleep_time, 1); //set Timer as a wake up source from low power modes
 			// if (rtc_result < 0)
@@ -1649,8 +1698,11 @@ void WatchDog_Reset_Task(void *pvParameters)
 
 void My_Idle_Task(void *arg)
 {
-	printf("Entering deep sleep\n");
-	esp_deep_sleep_start();
+	while (1)
+	{
+		ESP_LOGI(TAG, "%d,My_Idle_Task", __LINE__);
+		// Enter_Sleep();
+	}
 }
 
 esp_timer_handle_t http_timer_suspend_p = NULL;
@@ -1767,14 +1819,12 @@ void app_main(void)
 	//所有IO初始化
 	PinMuxConfig(); //Configure The Peripherals
 
-	bell_makeSound(2000);
+	// bell_makeSound(2000);
 
 	//ESP 在任务中初始化
 	I2C_Init(); //Configuring IIC Bus
 
 	UserSpiInit(); //Configuring SPI Bus
-
-	xTaskCreate(My_Idle_Task, "My_Idle_Task", 2048, NULL, 1, NULL);
 
 #ifdef USE_WD
 	// 看门狗 esp在系统中设置
@@ -1816,22 +1866,22 @@ void app_main(void)
 		MetaData_Read();	//Read Metadata in At24c08
 		CaliData_Read();	//Read Calidata in At24c08
 
-		//UART初始化
-		Set_Uart_Int_Source(); //Set Peripheral Interrupt Source
-
-		//wifi初始化
-		init_wifi();
 		// VStartSimpleLinkSpawnTask(SPAWN_TASK_PRIORITY); //Start the SimpleLink Host
 
 		if (!strcmp((char const *)read_flag, SYSTEM_ON)) //"SYSTEM ON"
 		{
+			//UART初始化
+			Set_Uart_Int_Source(); //Set Peripheral Interrupt Source
+
+			//wifi初始化
+			init_wifi();
 			//初始化睡眠唤醒，ESP可在进入中断前再进行设置
 			// Set_GPIO_AsWkUp();								  //setting GPIO wakeup source
 			// lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE); //lowest power mode
 
 			my_xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 256, NULL, 1, &xBinary13);			  //Create Check Tasks End
 			my_xTaskCreate(Green_LedFlashed_Task, "Green_LedFlashed_Task", 256, NULL, 7, &xBinary17); //Create GREEN LED Blink Task When Internet Application
-			my_xTaskCreate(Usb_Mode_Task, "Usb_Mode_Task", 320, NULL, 3, &xBinary15);				  //USB Mode Led Flash Task
+			my_xTaskCreate(Usb_Mode_Task, "Usb_Mode_Task", 512, NULL, 3, &xBinary15);				  //USB Mode Led Flash Task
 			my_xTaskCreate(WatchDog_Reset_Task, "WatchDog_Reset_Task", 384, NULL, 9, NULL);			  //Watch Dog Rest Task
 																									  //      my_xTaskCreate( UartRevTask, "UartRevTask",512,NULL, 9, NULL );  //Create UART recive Task
 			my_xTaskCreate(UartParseTask, "UartParseTask", 1280, NULL, 7, NULL);					  //Create UART Task
@@ -1981,12 +2031,12 @@ end:
 	// Timer_IF_InterruptClear(TIMERA0_BASE);		//Clear the timer interrupt bit
 	// Timer_IF_Start(TIMERA0_BASE, TIMER_A, 100); //Start TIMERA0 values in nSec
 	// osi_start(); // Start the task scheduler
-
+	// xTaskCreate(My_Idle_Task, "My_Idle_Task", 2048, NULL, 1, NULL);
 	esp_timer_create(&timer_app_arg, &timer_app_handle);
 	esp_timer_start_periodic(timer_app_handle, 10000); //创建定时器，单位us，定时10ms
 
-	for (;;)
-		; //never go here
+	// for (;;)
+	; //never go here
 }
 
 /*******************************************************************************

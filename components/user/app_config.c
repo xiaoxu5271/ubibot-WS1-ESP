@@ -508,7 +508,7 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
 {
     uint8_t i;
     uint8_t read_len;
-    int lRetVal = -1;
+    uint16_t ScanAP = 0;
     int Wifi_List_Val = -127;
     char scan_buf[96];
     char utctime[21] = {0};
@@ -540,8 +540,8 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
         return ERROR_CODE;
     }
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number, ap_info));
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&lRetVal));
-    ESP_LOGI(TAG, "Total APs scanned = %u", lRetVal);
+    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ScanAP));
+    ESP_LOGI(TAG, "Total APs scanned = %u", ScanAP);
     // for (int i = 0; (i < DEFAULT_SCAN_LIST_SIZE) && (i < ap_count); i++)
     // {
     //     printf("{\"SSID\":\"%s\",\"rssi\":%d}\n\r", ap_info[i].ssid, ap_info[i].rssi);
@@ -551,17 +551,18 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
         //  xSemaphoreTake(xMutex4, -1); //UART Semaphore Take
         xSemaphoreTake(xMutex4, -1);
 
-        printf("{\"WiFi_List_Sum\":%d}\r\n", lRetVal);
+        printf("{\"WiFi_List_Sum\":%d}\r\n", ScanAP);
 
         //  xSemaphoreGive(xMutex4); //UART Semaphore Give
         xSemaphoreGive(xMutex4);
     }
 
-    if (lRetVal > 0)
+    if (ScanAP > 0)
     {
-        *rssi_val = -127;
+        if (rssi_val != NULL && rssi_ssid != NULL)
+            *rssi_val = -127;
 
-        for (i = 0; i < lRetVal; i++)
+        for (i = 0; i < ScanAP; i++)
         {
             if (uart_printf)
             {
@@ -606,13 +607,16 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
                     Wifi_List_Val = ap_info[i].rssi;
                 }
             }
-            if (*rssi_val < ap_info[i].rssi)
+            if (rssi_val != NULL && rssi_ssid != NULL)
             {
-                *rssi_val = ap_info[i].rssi;
+                if (*rssi_val < ap_info[i].rssi)
+                {
+                    *rssi_val = ap_info[i].rssi;
 
-                memset(rssi_ssid, 0, 32);
+                    memset(rssi_ssid, 0, 32);
 
-                memcpy(rssi_ssid, ap_info[i].ssid, strlen((char *)ap_info[i].ssid));
+                    memcpy(rssi_ssid, ap_info[i].ssid, strlen((char *)ap_info[i].ssid));
+                }
             }
         }
         osi_Read_UTCtime(utctime, sizeof(utctime)); //read time
@@ -621,29 +625,15 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
 
         snprintf(wifi_buf, sizeof(wifi_buf), ",{\"created_at\":\"%s\",\"wifi\":\"%s,%d;%s,%d;%s,%d;%s,%d;%s,%d\"}", utctime, bssid_buf[0], bssid_rssi_val[0], bssid_buf[1], bssid_rssi_val[1], bssid_buf[2], bssid_rssi_val[2], bssid_buf[3], bssid_rssi_val[3], bssid_buf[4], bssid_rssi_val[4]);
 
-#ifdef DEBUG
-        osi_UartPrint(wifi_buf);
-        osi_UartPrint("\r\n");
-#endif
+        ESP_LOGI(TAG, "SCAN WIFI OK :\r\n%s", wifi_buf);
     }
     else
     {
         osi_Read_UTCtime(utctime, sizeof(utctime)); //read time
-
         memset(wifi_buf, 0, sizeof(wifi_buf));
-
         snprintf(wifi_buf, sizeof(wifi_buf), ",{\"created_at\":\"%s\",\"wifi\":\"\"}", utctime);
 
-#ifdef DEBUG
-        osi_UartPrint(wifi_buf);
-        osi_UartPrint("\r\n");
-#endif
-
-#ifdef DEBUG
-
-        osi_UartPrint("Unable to retreive the network list\r\n");
-
-#endif
+        ESP_LOGI(TAG, "SCAN WIFI FAIL :\r\n%s", wifi_buf);
     }
 
     stop_user_wifi();
@@ -737,7 +727,6 @@ short osi_WiFi_Connect_Test(void)
 
 extern bool ap_mode_status;
 extern bool AP_MODE_END_FLAG;
-extern volatile bool AP_MODE_END;
 extern TaskHandle_t xBinary13; //Task End Check
 extern TaskHandle_t GR_LED_TaskHandle;
 extern TaskHandle_t GR_LED_FAST_TaskHandle;
@@ -945,7 +934,7 @@ void WlanAPMode(void *pvParameters)
             sys_run_time = 0; //clear system time out
         }
         sys_run_time = 0; //clear system time out
-        if ((lRetVal == 1) || (lRetVal == 5) || (AP_MODE_END))
+        if ((lRetVal == 1) || (lRetVal == 5))
         {
             break;
         }
@@ -962,7 +951,7 @@ CLEAN_UP:
     SET_GREEN_LED_OFF();            //Set Green Led Off
     SET_RED_LED_OFF();              //Set Red Led Off
 
-    if ((lRetVal == 1) || (AP_MODE_END))
+    if ((lRetVal == 1))
     {
         osi_bell_makeSound(200);
         my_xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 7, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task

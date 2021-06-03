@@ -18,12 +18,15 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "esp_log.h"
 
 #include "iic.h"
 #include "MsgType.h"
 #include "user_spi.h"
 
 #include "w25q128.h"
+
+#define TAG "w25q128"
 
 extern SemaphoreHandle_t xMutex1; //Used for SPI Lock
 extern SemaphoreHandle_t xMutex5; //Used for Post_Data_Buffer Lock
@@ -120,7 +123,7 @@ void w25q_WriteReg(uint8_t com_val, uint8_t value)
 *******************************************************************************/
 static uint16_t w25q_ReadId(void)
 {
-  uint16_t w25qid;
+  uint16_t w25qid = 0;
 
   Flash_Spi_Start(); //nor flash spi start
 
@@ -132,16 +135,20 @@ static uint16_t w25q_ReadId(void)
 
   SPI_Write(0x00); //recive data
 
-  w25qid = SPI_Read();
+  // w25qid = SPI_Read();
 
-  w25qid = w25qid << 8;
+  // w25qid = w25qid << 8;
 
-  w25qid = SPI_Read();
+  // w25qid = SPI_Read();
 
-  w25qid += SPI_Read();
+  // w25qid += SPI_Read();
+
+  w25qid |= SPI_Read() << 8;
+  w25qid |= SPI_Read();
 
   Flash_Spi_Stop(); //nor flash spi stop
 
+  ESP_LOGI(TAG, "%d,%04X", __LINE__, w25qid);
   return w25qid;
 }
 

@@ -212,6 +212,7 @@ void UartParseTask(void *pvParameters)
               osi_UartPrint_Mul(SUCCESSED_CODE, "\r\n");
               osi_bell_makeSound(200);
 
+              //处于网络占用中
               if (ap_mode_status || POST_TASK_END_FLAG || UPDATETIME_TASK_END_FLAG || APIGET_TASK_END_FLAG)
               {
                 osi_UartPrint_Mul(FAILURED_CODE, "\r\n");
