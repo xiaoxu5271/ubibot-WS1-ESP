@@ -96,7 +96,8 @@ static void w25q_WaitCompleted(void)
     {
       break;
     }
-    MAP_UtilsDelay(20000); //delay about 1.5ms
+    // MAP_UtilsDelay(20000); //delay about 1.5ms
+    vTaskDelay(1.5 / portTICK_RATE_MS);
   }
 }
 

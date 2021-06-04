@@ -21,10 +21,13 @@
 #include "driver/gpio.h"
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
+#include "esp_log.h"
 
 #include "MsgType.h"
 #include "at24c08.h"
 #include "PeripheralDriver.h"
+
+#define TAG "Power_ADC"
 
 extern TaskHandle_t xBinary7; //For Power Measure Task
 extern QueueHandle_t xQueue0; //Used for cjson and memory save
@@ -63,6 +66,8 @@ float power_adcValue(void)
   //Convert adc_reading to voltage in mV
   float voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars);
 
+  ESP_LOGI(TAG, "voltage=%04f", voltage);
+
   return voltage;
 }
 
@@ -90,7 +95,8 @@ void PowerMeasureTask(void *pvParameters)
         {
           if (!(gpio_get_level(USB_PIN)))
           {
-            MAP_UtilsDelay(100000); //Delay About 7.5ms
+            // MAP_UtilsDelay(100000); //Delay About 7.5ms
+            vTaskDelay(15 / portTICK_RATE_MS);
             if (!(gpio_get_level(USB_PIN)))
             {
               break;
@@ -101,7 +107,8 @@ void PowerMeasureTask(void *pvParameters)
         {
           if (gpio_get_level(USB_PIN))
           {
-            MAP_UtilsDelay(100000); //Delay About 7.5ms
+            // MAP_UtilsDelay(100000); //Delay About 7.5ms
+            vTaskDelay(15 / portTICK_RATE_MS);
 
             if (gpio_get_level(USB_PIN))
             {
@@ -113,7 +120,8 @@ void PowerMeasureTask(void *pvParameters)
         }
       }
 
-      MAP_UtilsDelay(20000000); //Delay About 1.5s
+      // MAP_UtilsDelay(20000000); //Delay About 1.5s
+      vTaskDelay(1500 / portTICK_RATE_MS);
     }
 
 #ifdef USE_LCD

@@ -104,8 +104,8 @@
 #define SUCCESSED_CODE "{\"status\":0,\"code\":0}"
 #define FAILURED_CODE "{\"status\":0,\"code\":4}"
 
-#define FIRMWARENUM "ws1_v3.0.4"
-#define FIRMWAREVIEW "&firmware=ws1_v3.0.4"
+#define FIRMWARENUM "ws1_e_v1.0.1"
+#define FIRMWAREVIEW "&firmware=ws1_v1.0.1"
 
 #define MAP_UtilsDelay(num) ets_delay_us((uint32_t)(num * 3 / 40))
 

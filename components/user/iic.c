@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "driver/i2c.h"
@@ -30,6 +31,8 @@
 
 #include "MsgType.h"
 #include "iic.h"
+
+extern SemaphoreHandle_t xMutex8; //Used for I2C lock
 
 /*******************************************************************************
   delay about nus*3us
@@ -68,6 +71,7 @@ void I2C_Init(void)
 *******************************************************************************/
 static short IIC_WR_Reg(uint8_t sla_addr, uint8_t reg_addr, uint8_t val)
 {
+  xSemaphoreTake(xMutex8, -1);
   // IIC_Start(); //IIC start
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   i2c_master_start(cmd);
@@ -95,6 +99,9 @@ static short IIC_WR_Reg(uint8_t sla_addr, uint8_t reg_addr, uint8_t val)
   esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS);
   i2c_cmd_link_delete(cmd);
 
+  vTaskDelay(5 / portTICK_RATE_MS);
+  xSemaphoreGive(xMutex8);
+
   if (ret == ESP_OK)
   {
     return SUCCESS;
@@ -118,7 +125,8 @@ void MulTry_IIC_WR_Reg(uint8_t sla_addr, uint8_t reg_addr, uint8_t val)
     {
       break;
     }
-    MAP_UtilsDelay(80000); //delay about 6ms
+    // MAP_UtilsDelay(80000); //delay about 6ms
+    vTaskDelay(15 / portTICK_RATE_MS);
   }
 }
 
@@ -127,6 +135,7 @@ void MulTry_IIC_WR_Reg(uint8_t sla_addr, uint8_t reg_addr, uint8_t val)
 *******************************************************************************/
 static short IIC_RD_Reg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *val)
 {
+  xSemaphoreTake(xMutex8, -1);
   // IIC_Start(); //IIC start
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   i2c_master_start(cmd);
@@ -165,6 +174,9 @@ static short IIC_RD_Reg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *val)
   esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS);
   i2c_cmd_link_delete(cmd);
 
+  vTaskDelay(5 / portTICK_RATE_MS);
+  xSemaphoreGive(xMutex8);
+
   if (ret == ESP_OK)
   {
     return SUCCESS;
@@ -188,7 +200,8 @@ void MulTry_IIC_RD_Reg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *val)
     {
       break;
     }
-    MAP_UtilsDelay(40000); //delay about 3ms
+    // MAP_UtilsDelay(40000); //delay about 3ms
+    vTaskDelay(5 / portTICK_RATE_MS);
   }
 }
 
@@ -197,6 +210,8 @@ void MulTry_IIC_RD_Reg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *val)
 *******************************************************************************/
 static short I2C_WR_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uint8_t len)
 {
+
+  xSemaphoreTake(xMutex8, -1);
   // IIC_Start(); //IIC start
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   i2c_master_start(cmd);
@@ -230,6 +245,9 @@ static short I2C_WR_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uin
   esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS);
   i2c_cmd_link_delete(cmd);
 
+  vTaskDelay(5 / portTICK_RATE_MS);
+  xSemaphoreGive(xMutex8);
+
   if (ret == ESP_OK)
   {
     return SUCCESS;
@@ -253,7 +271,8 @@ void MulTry_I2C_WR_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uint
     {
       break;
     }
-    MAP_UtilsDelay(80000); //delay about 6ms
+    // MAP_UtilsDelay(80000); //delay about 6ms
+    vTaskDelay(15 / portTICK_RATE_MS);
   }
 }
 
@@ -262,6 +281,7 @@ void MulTry_I2C_WR_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uint
 *******************************************************************************/
 static short I2C_RD_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uint8_t len)
 {
+  xSemaphoreTake(xMutex8, -1);
   uint8_t i;
 
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
@@ -288,6 +308,9 @@ static short I2C_RD_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uin
   esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS);
   i2c_cmd_link_delete(cmd);
 
+  vTaskDelay(5 / portTICK_RATE_MS);
+  xSemaphoreGive(xMutex8);
+
   if (ret == ESP_OK)
   {
     return SUCCESS;
@@ -311,7 +334,8 @@ void MulTry_I2C_RD_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uint
     {
       break;
     }
-    MAP_UtilsDelay(40000); //delay about 3ms
+    // MAP_UtilsDelay(40000); //delay about 3ms
+    vTaskDelay(5 / portTICK_RATE_MS);
   }
 }
 

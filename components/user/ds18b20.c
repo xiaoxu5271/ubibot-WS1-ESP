@@ -177,7 +177,8 @@ static void ds18b20_start(void)
 
     DATA_IO_ON();
 
-    MAP_UtilsDelay(10000000); //delay about 750ms
+    // MAP_UtilsDelay(10000000); //delay about 750ms
+    vTaskDelay(1000 / portTICK_RATE_MS);
 
 #endif
   }

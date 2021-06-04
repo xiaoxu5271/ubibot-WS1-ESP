@@ -19,12 +19,15 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "driver/gpio.h"
+#include "esp_log.h"
 
 #include "MsgType.h"
 #include "adxl345.h"
 #include "PCF8563.h"
 #include "AcceSensorTask.h"
 #include "PeripheralDriver.h"
+
+#define TAG "AcceSensor_Task"
 
 #define ERROR_CODE 0xffff
 
@@ -179,7 +182,8 @@ static void AccelerationValue(float *accevalue)
       break; //time out
     }
 
-    MAP_UtilsDelay(200000);                                //delay 15ms
+    // MAP_UtilsDelay(200000);                                //delay 15ms
+    vTaskDelay(15 / portTICK_RATE_MS);
     s_sec_val = osi_IIC_ReadReg(PCF8563_ADDR, VL_seconds); //read time sec
   }
 
@@ -202,13 +206,11 @@ void AcceSensor_Int_Task(void *pvParameters)
   {
     // osi_SyncObjWait(&xBinary12, -1); //Waite GPIO Interrupt Message
     ulTaskNotifyTake(pdTRUE, -1);
-
+    ESP_LOGI(TAG, "%d,ACCE_SRC_WKUP:%d", __LINE__, gpio_get_level(ACCE_SRC_WKUP));
     if (!gpio_get_level(ACCE_SRC_WKUP))
     {
       acce_status = osi_adx345_readReg(INT_SOURCE);
-#ifdef DEBUG
-      osi_UartPrint_Val("INT_SOURCE:", acce_status);
-#endif
+      ESP_LOGI(TAG, "%d,acce_status:%d", __LINE__, acce_status);
 
       if (acce_status & 0x10) //ACCE Sensor ACT Interrupt
       {
@@ -237,7 +239,8 @@ void AcceSensor_Int_Task(void *pvParameters)
           xMsg.sensorval = f7_a * 2 + f7_b; //Message Value
           xQueueSend(xQueue0, &xMsg, 0);    //Send Acceleration Value
 
-          MAP_UtilsDelay(4000000); //300ms
+          // MAP_UtilsDelay(4000000); //300ms
+          vTaskDelay(300 / portTICK_RATE_MS);
         }
       }
       else if (acce_status & 0x40) //ACCE Sensor SINGLE_TAP Interrupt
@@ -251,7 +254,8 @@ void AcceSensor_Int_Task(void *pvParameters)
           xMsg.sensornum = TAP_NUM;         //Message Number
           xMsg.sensorval = f7_a * 1 + f7_b; //Message Value
           xQueueSend(xQueue0, &xMsg, 0);    //Send Acceleration Value
-          MAP_UtilsDelay(4000000);          //300ms
+                                            // MAP_UtilsDelay(4000000);          //300ms
+          vTaskDelay(300 / portTICK_RATE_MS);
         }
       }
 

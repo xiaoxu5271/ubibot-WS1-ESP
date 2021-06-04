@@ -18,9 +18,10 @@
 #include "iic.h"
 #include "MsgType.h"
 #include "user_spi.h"
-
 #include "adxl345.h"
+#include "esp_log.h"
 
+#define TAG "adxl345"
 struct Init_Data
 {
   uint8_t reg_addr;
@@ -60,7 +61,26 @@ short ADXL345_Init(void)
 
   if (adx345_readReg(DEVICE_ID) == 0xE5) //read the sensor device id
   {
-    struct Init_Data Acce_Init_Data[] = {{POWER_CTL, 0x20}, {INT_ENABLE, 0x00}, {THRESH_TAP, 0x16}, {OFSX, 0x00}, {OFSY, 0x00}, {OFSZ, 0x00}, {DUR, 0x25}, {Latent, 0x78}, {Window, 0xff}, {THRESH_ACT, thres_acc_min}, {THRESH_INACT, thres_acc_min}, {TIME_INACT, 0x05}, {ACT_INACT_CTL, 0xff}, {THRESH_FF, 0x08}, {TIME_FF, 0x28}, {TAP_AXES, 0x07}, {BW_RATE, 0x0a}, {INT_MAP, 0x87}, {DATA_FORMAT, 0x2b}, {FIFO_CTL, 0xa8}};
+    struct Init_Data Acce_Init_Data[] = {{POWER_CTL, 0x20},
+                                         {INT_ENABLE, 0x00},
+                                         {THRESH_TAP, 0x16},
+                                         {OFSX, 0x00},
+                                         {OFSY, 0x00},
+                                         {OFSZ, 0x00},
+                                         {DUR, 0x25},
+                                         {Latent, 0x78},
+                                         {Window, 0xff},
+                                         {THRESH_ACT, thres_acc_min},
+                                         {THRESH_INACT, thres_acc_min},
+                                         {TIME_INACT, 0x05},
+                                         {ACT_INACT_CTL, 0xff},
+                                         {THRESH_FF, 0x08},
+                                         {TIME_FF, 0x28},
+                                         {TAP_AXES, 0x07},
+                                         {BW_RATE, 0x0a},
+                                         {INT_MAP, 0x87},
+                                         {DATA_FORMAT, 0x2b}, //DATA_FORMAT, 0x2b 00101011 D5设置INT_INVERT，0->高电平有效 ,1->低电平有效
+                                         {FIFO_CTL, 0xa8}};   //FIFO_CTL, 0xa8 10101000 D5设置触发位，0->INT1 ,1->INT2
 
     n_i = sizeof(Acce_Init_Data) / sizeof(struct Init_Data);
 
@@ -68,8 +88,10 @@ short ADXL345_Init(void)
     {
       adx345_writeReg(Acce_Init_Data[i].reg_addr, Acce_Init_Data[i].reg_val); //adx345 write register
     }
+    ESP_LOGI(TAG, "%d", __LINE__);
     return SUCCESS;
   }
+  ESP_LOGE(TAG, "%d", __LINE__);
   return FAILURE;
 }
 

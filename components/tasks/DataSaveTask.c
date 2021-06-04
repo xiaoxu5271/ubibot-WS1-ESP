@@ -21,6 +21,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "esp_log.h"
 
 #include "MsgType.h"
 #include "w25q128.h"
@@ -28,6 +29,8 @@
 #include "PCF8563.h"
 #include "HttpClientTask.h"
 #include "PeripheralDriver.h"
+
+#define TAG "DataSaveTask"
 
 #define RETRY_TIME_OUT 3
 
@@ -87,22 +90,19 @@ static void DataSave(char *buffer, uint8_t size)
     osi_at24c08_write(DATA_AMOUNT_ADDR2, POST_NUM); //save the post data amount
   }
 
+  ESP_LOGI(TAG, "%d,data_post:%d", __LINE__, data_post);
   if (data_post) //need post data immediately
   {
     data_post = 0;
 
     // osi_SyncObjSignalFromISR(&xBinary0);  //send message to data post task
-    if (xBinary0 != NULL)
-      vTaskNotifyGiveFromISR(xBinary0, NULL);
+    if ((xEventGroupWaitBits(Task_Group, MAIN_INIT_BIT, false, false, -1) & MAIN_INIT_BIT) == MAIN_INIT_BIT)
+      if (xBinary0 != NULL)
+        vTaskNotifyGiveFromISR(xBinary0, NULL);
   }
 
-#ifdef DEBUG_SAVE
-
-  osi_UartPrint_Val("POST_NUM:", POST_NUM);
-
-  osi_UartPrint_Val("WRITE_ADDR:", WRITE_ADDR);
-
-#endif
+  ESP_LOGI(TAG, "POST_NUM:%ld", POST_NUM);
+  ESP_LOGI(TAG, "WRITE_ADDR:%ld", WRITE_ADDR);
 }
 
 /*******************************************************************************

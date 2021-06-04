@@ -16,8 +16,11 @@
 #include <math.h>
 #include "iic.h"
 #include "MsgType.h"
+#include "esp_log.h"
 
 #include "opt3001.h"
+
+#define TAG "opt3001"
 /*******************************************************************************
   write opt3001 light sensor register
 *******************************************************************************/
@@ -57,8 +60,10 @@ short OPT3001_Init(void)
 
     OPT3001_WriteReg(Configuration, 0xCE1A); //15:12-C: automatic full-scale,800ms conversion time field,continuous
 
+    ESP_LOGI(TAG, "%d", __LINE__);
     return SUCCESS;
   }
+  ESP_LOGE(TAG, "%d", __LINE__);
   return FAILURE;
 }
 
@@ -93,7 +98,8 @@ void OPT3001_value(float *lightvalue)
         *lightvalue = ERROR_CODE;
       }
 
-      MAP_UtilsDelay(60000); //delay about 4.5ms
+      // MAP_UtilsDelay(60000); //delay about 4.5ms
+      vTaskDelay(5 / portTICK_RATE_MS);
     }
   }
   else

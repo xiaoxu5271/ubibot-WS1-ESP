@@ -296,7 +296,8 @@ void Green_LedControl_Task(void *pvParameters)
 
     SET_GREEN_LED_ON(); //LED ON
 
-    MAP_UtilsDelay(led_t * 13300000); //delay about led_t s
+    // MAP_UtilsDelay(led_t * 13300000); //delay about led_t s
+    vTaskDelay(led_t * 1000 / portTICK_RATE_MS);
 
     SET_GREEN_LED_OFF(); //LED OFF
 
@@ -1142,11 +1143,13 @@ void osi_Save_Data_Reset(void)
 
     SET_RED_LED_ON(); //Set Red Led ON
 
-    MAP_UtilsDelay(6000000); //delay about 450ms
+    // MAP_UtilsDelay(6000000); //delay about 450ms
+    vTaskDelay(450 / portTICK_RATE_MS);
 
     SET_RED_LED_OFF(); //Set Red Led Off
 
-    MAP_UtilsDelay(6000000); //delay about 450ms
+    // MAP_UtilsDelay(6000000); //delay about 450ms
+    vTaskDelay(450 / portTICK_RATE_MS);
 
     xSemaphoreTake(xMutex1, -1); //SPI Semaphore Take
 
@@ -1300,7 +1303,8 @@ void osi_sht30_SingleShotMeasure(float *temp, float *humi)
 {
   //vTaskSuspendAll(); //disable the tasks
 
-  sht30_SingleShotMeasure(temp, humi); //read temperature humility data
+  // sht30_SingleShotMeasure(temp, humi); //read temperature humility data
+  sht30_SS_get_value(temp, humi);
 
   //xTaskResumeAll(); //enable all tasks
 }

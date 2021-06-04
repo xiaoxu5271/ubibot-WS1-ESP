@@ -15,11 +15,14 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include "esp_log.h"
 
 #include "iic.h"
 #include "MsgType.h"
 #include "at24c08.h"
 #include "PCF8563.h"
+
+#define TAG "PCF8563"
 /*******************************************************************************
 //PCF_Format_BCD to PCF_Format_BIN
 *******************************************************************************/
@@ -122,7 +125,8 @@ void Update_UTCtime(char *time)
       }
       else
       {
-        MAP_UtilsDelay(200000); //delay about 15ms
+        // MAP_UtilsDelay(200000); //delay about 15ms
+        vTaskDelay(15 / portTICK_RATE_MS);
       }
     }
   }
@@ -158,6 +162,7 @@ void Read_UTCtime(char *buffer, uint8_t buf_size)
   ts.tm_isdst = 0; //do not use Daylight Saving Time
 
   strftime(buffer, buf_size, "%Y-%m-%dT%H:%M:%SZ", &ts); //UTC time
+  ESP_LOGI(TAG, "%d,%s", __LINE__, buffer);
 }
 
 /*******************************************************************************

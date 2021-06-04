@@ -17,11 +17,14 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "driver/gpio.h"
+#include "esp_log.h"
 
 #include "MsgType.h"
 #include "opt3001.h"
 // #include "ht1621.h"
 #include "PeripheralDriver.h"
+
+#define TAG "LightSensorTask"
 
 extern TaskHandle_t xBinary3; //For Light Sensor Task
 extern QueueHandle_t xQueue0; //Used for cjson and memory save
@@ -47,6 +50,7 @@ void LightSensorTask(void *pvParameters)
     ulTaskNotifyTake(pdTRUE, -1);
 
     osi_OPT3001_value(&lightvalue); //Read Light Value
+    ESP_LOGI(TAG, "lightvalue=%04f", lightvalue);
 
     if (lightvalue != ERROR_CODE)
     {

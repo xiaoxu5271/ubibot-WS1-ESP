@@ -96,6 +96,7 @@ SemaphoreHandle_t xMutex3; //Used for cJSON Lock
 SemaphoreHandle_t xMutex4; //Used for UART Lock
 SemaphoreHandle_t xMutex5; //Used for Post_Data_Buffer Lock
 SemaphoreHandle_t xMutex7; //Used for data save num lock
+SemaphoreHandle_t xMutex8; //Used for I2C lock
 #ifdef USE_LCD
 SemaphoreHandle_t xMutex6; //Used for Ht1621 LCD Driver
 #endif
@@ -278,7 +279,7 @@ void Enter_Sleep(void)
 	const uint64_t ext_wakeup_pin_2_mask = 1ULL << ext_wakeup_pin_2;
 
 	printf("Enabling EXT1 wakeup on pins GPIO%d, GPIO%d\n", ext_wakeup_pin_1, ext_wakeup_pin_2);
-	esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask, ESP_EXT1_WAKEUP_ALL_LOW);
+	esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask | ext_wakeup_pin_2_mask, ESP_EXT1_WAKEUP_ALL_LOW);
 
 	printf("Entering deep sleep\n");
 	esp_deep_sleep_start();
@@ -822,9 +823,12 @@ void Usb_Mode_Task(void *pvParameters)
 
 			data_post = 1; //Save Then Post Data
 
-			// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-			if (xBinary7 != NULL)
-				vTaskNotifyGiveFromISR(xBinary7, NULL);
+			if ((xEventGroupWaitBits(Task_Group, MAIN_INIT_BIT, false, false, -1) & MAIN_INIT_BIT) == MAIN_INIT_BIT)
+			{
+				// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
+				if (xBinary7 != NULL)
+					vTaskNotifyGiveFromISR(xBinary7, NULL);
+			}
 		}
 		else
 		{
@@ -1079,23 +1083,26 @@ void ApikeyGetTask(void *pvParameters)
 
 		data_post = 1; //Save Then Post Data
 
-		// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
-		if (xBinary2 != NULL)
-			vTaskNotifyGiveFromISR(xBinary2, NULL);
-
-		// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
-		if (xBinary3 != NULL)
-			vTaskNotifyGiveFromISR(xBinary3, NULL);
-
-		// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
-		if (xBinary6 != NULL)
-			vTaskNotifyGiveFromISR(xBinary6, NULL);
-
-		// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-		if (xBinary7 != NULL)
-			vTaskNotifyGiveFromISR(xBinary7, NULL);
-
+		//需要先创建任务，并等待任务创建完成 否则下面的通知收不到
 		my_xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
+		if ((xEventGroupWaitBits(Task_Group, MAIN_INIT_BIT, false, false, -1) & MAIN_INIT_BIT) == MAIN_INIT_BIT)
+		{
+			// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
+			if (xBinary2 != NULL)
+				vTaskNotifyGiveFromISR(xBinary2, NULL);
+
+			// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
+			if (xBinary3 != NULL)
+				vTaskNotifyGiveFromISR(xBinary3, NULL);
+
+			// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
+			if (xBinary6 != NULL)
+				vTaskNotifyGiveFromISR(xBinary6, NULL);
+
+			// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
+			if (xBinary7 != NULL)
+				vTaskNotifyGiveFromISR(xBinary7, NULL);
+		}
 	}
 	else
 	{
@@ -1175,23 +1182,26 @@ void UpdateTimeTask(void *pvParameters)
 
 	data_post = 1; //Save Then Post Data
 
-	// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
-	if (xBinary2 != NULL)
-		vTaskNotifyGiveFromISR(xBinary2, NULL);
-
-	// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
-	if (xBinary3 != NULL)
-		vTaskNotifyGiveFromISR(xBinary3, NULL);
-
-	// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
-	if (xBinary6 != NULL)
-		vTaskNotifyGiveFromISR(xBinary6, NULL);
-
-	// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-	if (xBinary7 != NULL)
-		vTaskNotifyGiveFromISR(xBinary7, NULL);
-
+	//需要先创建任务，并等待任务创建完成 否则下面的通知收不到
 	my_xTaskCreate(MainTask_Create, "MainTask_Create Task", 512, NULL, 9, NULL); //create the system work task
+	if ((xEventGroupWaitBits(Task_Group, MAIN_INIT_BIT, false, false, -1) & MAIN_INIT_BIT) == MAIN_INIT_BIT)
+	{
+		// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
+		if (xBinary2 != NULL)
+			vTaskNotifyGiveFromISR(xBinary2, NULL);
+
+		// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
+		if (xBinary3 != NULL)
+			vTaskNotifyGiveFromISR(xBinary3, NULL);
+
+		// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
+		if (xBinary6 != NULL)
+			vTaskNotifyGiveFromISR(xBinary6, NULL);
+
+		// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
+		if (xBinary7 != NULL)
+			vTaskNotifyGiveFromISR(xBinary7, NULL);
+	}
 
 	// osi_TaskDelete(&upd_TaskHandle); //delete Update Time TASK
 	xEventGroupSetBits(Task_Group, UPDATETIME_TASK_BIT);
@@ -1211,7 +1221,8 @@ void Usb_Set_Mode(void *pvParameters)
 
 	my_xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
 
-	MAP_UtilsDelay(80000); //delay about 6ms
+	// MAP_UtilsDelay(80000); //delay about 6ms
+	vTaskDelay(10 / portTICK_RATE_MS);
 
 	vTaskDelete(NULL);
 }
@@ -1304,6 +1315,7 @@ void F_ResetTask(void *pvParameters)
 
 	f_reset_status = 0;
 
+	ESP_LOGI(TAG, "%d,F_ResetTask", __LINE__);
 	vTaskDelete(NULL); //Delete Factory Reset Task
 }
 
@@ -1318,10 +1330,10 @@ void ButtonPush_Int_Task(void *pvParameters)
 	{
 		// osi_SyncObjWait(&xBinary1, -1); //Waite Button GPIO Interrupt Message
 		ulTaskNotifyTake(pdTRUE, -1);
-
-		// if (!gpio_get_level(BUTTON_PIN))
+		vTaskDelay(10 / portTICK_RATE_MS);
 		if (!gpio_get_level(BUTTON_PIN))
 		{
+			ESP_LOGI(TAG, "%d，ACCE_SRC_WKUP:%d", __LINE__, gpio_get_level(ACCE_SRC_WKUP));
 			Button_Push = 0;
 
 			while (!gpio_get_level(BUTTON_PIN)) //waite button up,read push time
@@ -1342,7 +1354,8 @@ void ButtonPush_Int_Task(void *pvParameters)
 					//xTaskResumeAll(); //enable all tasks
 				}
 
-				MAP_UtilsDelay(200000); //delay about 15ms
+				// MAP_UtilsDelay(200000); //delay about 15ms
+				vTaskDelay(15 / portTICK_RATE_MS);
 
 				sys_run_time = 0; //clear system time out
 			}
@@ -1365,21 +1378,24 @@ void ButtonPush_Int_Task(void *pvParameters)
 
 				data_post = 1; //Save Then Post Data
 
-				// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
-				if (xBinary2 != NULL)
-					vTaskNotifyGiveFromISR(xBinary2, NULL);
+				if ((xEventGroupWaitBits(Task_Group, MAIN_INIT_BIT, false, false, -1) & MAIN_INIT_BIT) == MAIN_INIT_BIT)
+				{
+					// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
+					if (xBinary2 != NULL)
+						vTaskNotifyGiveFromISR(xBinary2, NULL);
 
-				// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
-				if (xBinary3 != NULL)
-					vTaskNotifyGiveFromISR(xBinary3, NULL);
+					// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
+					if (xBinary3 != NULL)
+						vTaskNotifyGiveFromISR(xBinary3, NULL);
 
-				// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
-				if (xBinary6 != NULL)
-					vTaskNotifyGiveFromISR(xBinary6, NULL);
+					// osi_SyncObjSignalFromISR(&xBinary6); //Extern Temperature Measure Task
+					if (xBinary6 != NULL)
+						vTaskNotifyGiveFromISR(xBinary6, NULL);
 
-				// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
-				if (xBinary7 != NULL)
-					vTaskNotifyGiveFromISR(xBinary7, NULL);
+					// osi_SyncObjSignalFromISR(&xBinary7); //Power Measure Task
+					if (xBinary7 != NULL)
+						vTaskNotifyGiveFromISR(xBinary7, NULL);
+				}
 			}
 		}
 	}
@@ -1494,51 +1510,6 @@ static void Sensors_Init(void)
 		ESP_LOGE(TAG, "%d", __LINE__);
 		Red_Led_Flashed(1, 6); //check flash
 	}
-
-#ifdef USE_LCD
-
-	float temp_val, humi_val, light_val, p_value;
-
-	Ht1621_On();
-
-	sht30_SingleShotMeasure(&temp_val, &humi_val); //read temperature humility data
-
-	Ht1621_Display_Temp_Val(temp_val, 0); //Display the temprature value
-
-	Ht1621_Display_Humi_Val((uint8_t)humi_val); //Display the Humility value
-
-	p_value = power_adcValue(); //Read power Value
-
-	if (p_value > 3.0)
-	{
-		power_flag = 0x07;
-
-		at24c08_write_byte(POWER_DATA_ADDR, power_flag);
-	}
-	else if (p_value > 2.5)
-	{
-		power_flag = 0x06;
-
-		at24c08_write_byte(POWER_DATA_ADDR, power_flag);
-	}
-	else
-	{
-		power_flag = 0x04;
-
-		at24c08_write_byte(POWER_DATA_ADDR, power_flag);
-	}
-
-	OPT3001_value(&light_val); //Read Light Value
-
-	Ht1621_Display_Light_Val(light_val, 0, 0, 0, power_flag); //Display the light value
-
-#endif
-
-#ifdef MAG_SENSOR
-	door_status = GPIOPinRead(MAG_PORT, MAG_PIN) > 0 ? DOOR_OPEN : DOOR_CLOSED;
-
-	at24c08_write_byte(DOOR_STATUS_ADDR, door_status); //save door status
-#endif
 }
 
 /*******************************************************************************
@@ -1612,6 +1583,8 @@ void System_Variables_Init(void)
 
 	xMutex7 = xSemaphoreCreateMutex();
 
+	xMutex8 = xSemaphoreCreateMutex();
+
 	// osi_MsgQCreate(&xQueue0, "xQueue0", sizeof(SensorMessage), 8); //create queue used for sensor value save
 	xQueue0 = xQueueCreate(8, sizeof(SensorMessage));
 
@@ -1646,7 +1619,8 @@ static short Read_System_Status(uint8_t *read_flag, uint8_t buf_len)
 	else
 	{
 		ESP_LOGE(TAG, "%d,%s", __LINE__, read_flag);
-		MAP_UtilsDelay(2000000); //Delay About 150ms
+		// MAP_UtilsDelay(2000000); //Delay About 150ms
+		vTaskDelay(150 / portTICK_RATE_MS);
 	}
 	// }
 
@@ -1793,7 +1767,7 @@ void PinMuxConfig(void)
 	io_conf.pull_up_en = 0;
 	gpio_config(&io_conf);
 
-	io_conf.intr_type = GPIO_INTR_ANYEDGE;
+	io_conf.intr_type = GPIO_INTR_NEGEDGE; //下降沿
 	io_conf.mode = GPIO_MODE_INPUT;
 	io_conf.pull_down_en = 0;
 	io_conf.pull_up_en = 0;
@@ -1802,8 +1776,8 @@ void PinMuxConfig(void)
 
 	gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
 	gpio_isr_handler_add(BUTTON_PIN, gpio_isr_handler, (void *)BUTTON_PIN);
-	// gpio_isr_handler_add(USB_SRC_WKUP, gpio_isr_handler, (void *)USB_SRC_WKUP);
-	// gpio_isr_handler_add(ACCE_SRC_WKUP, gpio_isr_handler, (void *)ACCE_SRC_WKUP);
+	gpio_isr_handler_add(USB_SRC_WKUP, gpio_isr_handler, (void *)USB_SRC_WKUP);
+	gpio_isr_handler_add(ACCE_SRC_WKUP, gpio_isr_handler, (void *)ACCE_SRC_WKUP);
 }
 
 /*******************************************************************************
@@ -1816,25 +1790,11 @@ void app_main(void)
 	uint8_t read_flag2[16] = {0};
 	unsigned long ulResetCause = 0;
 
-	//ESP32 无关
-	// BoardInit();	//Board Initialization
-	//所有IO初始化
-	PinMuxConfig(); //Configure The Peripherals
+	System_Variables_Init(); //System Variables Init
+	PinMuxConfig();			 //Configure The Peripherals
+	I2C_Init();				 //Configuring IIC Bus
+	UserSpiInit();			 //Configuring SPI Bus
 
-	// bell_makeSound(2000);
-
-	//ESP 在任务中初始化
-	I2C_Init(); //Configuring IIC Bus
-
-	UserSpiInit(); //Configuring SPI Bus
-
-#ifdef USE_WD
-	// 看门狗 esp在系统中设置
-	// WDT_IF_Init(NULL, 80000000 * 10); //Initialize WDT 10s
-	// CHECK_ERROR_CODE(esp_task_wdt_init(10, false), ESP_OK);
-#endif
-
-	// ulResetCause = PRCMSysResetCauseGet(); //Get the reset cause
 	ulResetCause = esp_reset_reason();
 	if (ulResetCause == ESP_RST_WDT) //clean boot the system
 	{
@@ -1861,9 +1821,6 @@ void app_main(void)
 	// platform_init();												 //Initialize the platform
 	if (Read_System_Status(read_flag, sizeof(read_flag)) == SUCCESS) //Check System Status
 	{
-		//二值化初始化 ，ESP 使用任务通知
-		System_Variables_Init(); //System Variables Init
-
 		OperateData_Read(); //Read Operate Data in At24c08
 		MetaData_Read();	//Read Metadata in At24c08
 		CaliData_Read();	//Read Calidata in At24c08
@@ -1890,7 +1847,8 @@ void app_main(void)
 
 			if (ulResetCause == ESP_RST_POWERON) // Check the wakeup source-except PRCM_HIB_EXIT
 			{
-				MAP_UtilsDelay(10000000); //Delay About 750ms
+				// MAP_UtilsDelay(10000000); //Delay About 750ms
+				vTaskDelay(750 / portTICK_RATE_MS);
 				Green_Led_Bell_Sound(200);
 				Sensors_Init();														   //Senosrs Init when power on
 				my_xTaskCreate(UpdateTimeTask, "UpdateTimeTask", 1024, NULL, 7, NULL); //Create UpdataTime Task
@@ -1938,8 +1896,9 @@ void app_main(void)
 					}
 					break;
 				}
-				MAP_UtilsDelay(2000000); //Delay About 150ms
-										 // WatchdogAck();			 //Acknowledge the watchdog
+				// MAP_UtilsDelay(2000000); //Delay About 150ms
+				vTaskDelay(150 / portTICK_RATE_MS);
+				// WatchdogAck();			 //Acknowledge the watchdog
 			}
 
 			if (push_time >= 20) //Push Time>=3s or USB connected Power ON

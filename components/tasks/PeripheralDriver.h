@@ -22,7 +22,7 @@
 #define BUTTON_PIN 4
 #define USB_SRC_WKUP 35
 // #define BUTTON_SRC_WKUP 4
-#define ACCE_SRC_WKUP 13
+#define ACCE_SRC_WKUP 15          //INT1->13 ,INT2->15
 #define SLOW_CLK_FREQ (32 * 1024) //slow clock frequence
 
 #define ERROR_CODE 0xffff

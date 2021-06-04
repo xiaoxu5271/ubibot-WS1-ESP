@@ -16,11 +16,14 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "esp_log.h"
 
 #include "MsgType.h"
 #include "sht30dis.h"
 // #include "ht1621.h"
 #include "PeripheralDriver.h"
+
+#define TAG "TempHumiSensorTask"
 
 extern QueueHandle_t xQueue0; //Used for cjson and memory save
 extern TaskHandle_t xBinary2; //For Temp&Humi Sensor Task
@@ -46,6 +49,8 @@ void TempHumiSensorTask(void *pvParameters)
     ulTaskNotifyTake(pdTRUE, -1);
 
     osi_sht30_SingleShotMeasure(&tempvalue, &humivalue); //read temperature humility data
+
+    ESP_LOGI(TAG, "tempvalue=%04f,humivalue=%04f", tempvalue, humivalue);
 
     if (tempvalue != ERROR_CODE)
     {

@@ -24,6 +24,8 @@
 #include "at24c08.h"
 
 #define TAG "at24c08"
+
+extern SemaphoreHandle_t xMutex8; //Used for I2C lock
 /*******************************************************************************
 //check two data buffer same or not
 *******************************************************************************/
@@ -62,7 +64,8 @@ static void at24c02_write_check(uint8_t sla_addr, uint8_t reg_addr, uint8_t *val
   {
     MulTry_I2C_WR_mulReg(sla_addr, reg_addr, write_buf, buf_len + 1); //iic write data
 
-    MAP_UtilsDelay(67500); //delay about 5ms
+    // MAP_UtilsDelay(67500); //delay about 5ms
+    vTaskDelay(15 / portTICK_RATE_MS);
 
     MulTry_I2C_RD_mulReg(sla_addr, reg_addr, read_buf, buf_len + 1); //iic read data
 
@@ -162,7 +165,8 @@ static void at24c08_WritePage(uint16_t reg_addr, uint8_t *buffer, uint8_t buf_le
 {
   MulTry_I2C_WR_mulReg(at24c08_addr0 + reg_addr / 256, reg_addr % 256, buffer, buf_len); //iic multi write
 
-  MAP_UtilsDelay(80000); //delay about 5ms
+  // MAP_UtilsDelay(80000); //delay about 5ms
+  vTaskDelay(15 / portTICK_RATE_MS);
 }
 
 /******************************************************************************
@@ -223,6 +227,8 @@ void at24c08_WriteData(uint16_t addr, uint8_t *buf, uint8_t size, bool end_flag)
 *******************************************************************************/
 static short I2C_ReadAt24c08(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uint8_t size, bool end_flag)
 {
+  xSemaphoreTake(xMutex8, -1);
+
   uint8_t i;
 
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
@@ -261,6 +267,10 @@ static short I2C_ReadAt24c08(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, u
   i2c_master_stop(cmd);
   esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS);
   i2c_cmd_link_delete(cmd);
+
+  vTaskDelay(5 / portTICK_RATE_MS);
+  xSemaphoreGive(xMutex8);
+
   if (ret != ESP_OK)
   {
     ESP_LOGE(TAG, "%d,%s", __LINE__, esp_err_to_name(ret));

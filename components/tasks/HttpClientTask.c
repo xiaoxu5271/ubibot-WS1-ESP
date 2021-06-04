@@ -411,12 +411,12 @@ esp_http_client_handle_t Http_Init_Fun(void)
       .path = "/",
   };
 
-  osi_at24c08_ReadData(HOST_ADDR, (uint8_t *)HOST_NAME, sizeof(HOST_NAME), 1); //read the host name
-
   Host_Flag = osi_at24c08_read_byte(HOST_NAME_IP_ADDR);
   ESP_LOGI(TAG, "%d,Host_Flag=%d", __LINE__, Host_Flag);
   if (Host_Flag == 0)
   {
+    osi_at24c08_ReadData(HOST_ADDR, (uint8_t *)HOST_NAME, sizeof(HOST_NAME), 1); //read the host name
+    ESP_LOGI(TAG, "%d,HOST_NAME:%s", __LINE__, HOST_NAME);
     dns_fault = 0;
     config.host = (char *)HOST_NAME;
   }
@@ -424,8 +424,9 @@ esp_http_client_handle_t Http_Init_Fun(void)
   {
     dns_fault = 1;
     osi_at24c08_ReadData(HOST_IP_ADDR, HOST_IP, sizeof(HOST_IP), 1);
-    sprintf(config.host, "%d.%d.%d.%d", HOST_IP[0], HOST_IP[1], HOST_IP[2], HOST_IP[3]);
-    ESP_LOGI(TAG, "USE IP: %s", config.host);
+    snprintf(HOST_NAME, sizeof(HOST_NAME), "%d.%d.%d.%d", HOST_IP[0], HOST_IP[1], HOST_IP[2], HOST_IP[3]);
+    ESP_LOGI(TAG, "%d,HOST_NAME:%s", __LINE__, HOST_NAME);
+    config.host = (char *)HOST_NAME;
   }
 
   config.port = osi_at24c08_read(HOST_PORT_ADDR);
@@ -561,6 +562,8 @@ void DataPostTask(void *pvParameters)
   {
     // osi_SyncObjWait(&xBinary0,-1);  //Wait For The Operation Message
     ulTaskNotifyTake(pdTRUE, -1);
+    xEventGroupClearBits(Task_Group, POST_TASK_BIT);
+    ESP_LOGI(TAG, "%d", __LINE__);
 
     Err_Status = 1;
 
@@ -570,7 +573,6 @@ void DataPostTask(void *pvParameters)
     sys_run_time = 0; //clear wifi post time
 
     POST_TASK_END_FLAG = 1;
-    xEventGroupClearBits(Task_Group, POST_TASK_BIT);
 
     // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
     if (xBinary13 != NULL)
@@ -601,18 +603,14 @@ void DataPostTask(void *pvParameters)
         lRetVal = WlanConnect(); //Wlan Connect To The Accesspoint
         if (lRetVal >= 0)
         {
+          ESP_LOGI(TAG, "%d", __LINE__);
           break;
         }
         else
         {
+          ESP_LOGI(TAG, "%d", __LINE__);
           Wlan_Disconnect_AP(); //wlan disconnect form the ap
-
-          // MAP_UtilsDelay(80000); //Delay About 6ms
-
-          if (Rssi_val == ERROR_CODE)
-          {
-            break;
-          }
+          vTaskDelay(1000 / portTICK_RATE_MS);
         }
       }
 
@@ -623,6 +621,7 @@ void DataPostTask(void *pvParameters)
         memset(calidata_buf, 0, sizeof(calidata_buf));
         Read_cali(calidata_buf, sizeof(calidata_buf)); // cali data
 
+        ESP_LOGI(TAG, "%d", __LINE__);
         while (POST_NUM)
         {
           sys_run_time = 0; //clear wifi post time
@@ -632,6 +631,7 @@ void DataPostTask(void *pvParameters)
           lRetVal = Read_PostDataLen(POST_ADDR, &read_data_end_addr, read_data_num, &post_data_num, &post_data_len);
           if (lRetVal < 0)
           {
+            ESP_LOGE(TAG, "%d", __LINE__);
             osi_System_ERROR_Save(MEMORY_SAVE_DATA_ERR); //Save ERROR Data
 
             PostAddrChage(post_data_num, read_data_end_addr); //change the point
@@ -641,11 +641,13 @@ void DataPostTask(void *pvParameters)
             esp_http_client_handle_t client = Http_Init_Fun(); //HTTP INIT
             if (client == NULL)
             {
+              ESP_LOGE(TAG, "%d", __LINE__);
               osi_System_ERROR_Save(CNT_SERVER_FLR_ERR); //save ERROR data
               break;
               // return lRetVal;
             }
 
+            ESP_LOGI(TAG, "%d", __LINE__);
             lRetVal = HTTPPostMethod(client, post_data_len, post_data_num);
             esp_http_client_cleanup(client);
 
@@ -653,6 +655,7 @@ void DataPostTask(void *pvParameters)
 
             if (lRetVal == SUCCESS)
             {
+              ESP_LOGI(TAG, "%d", __LINE__);
               Err_Status = 0;
 
               PostAddrChage(post_data_num, read_data_end_addr); //change the point
@@ -660,6 +663,7 @@ void DataPostTask(void *pvParameters)
             else if (lRetVal == 400)
             {
 
+              ESP_LOGE(TAG, "%d", __LINE__);
               osi_System_ERROR_Save(POST_DATA_JSON_FAULT); //save ERROR data
 
               PostAddrChage(post_data_num, read_data_end_addr); //change the point
@@ -668,6 +672,7 @@ void DataPostTask(void *pvParameters)
             }
             else if (lRetVal == 410)
             {
+              ESP_LOGE(TAG, "%d", __LINE__);
               PostSetData = 1;
 
               lRetVal = Http_Get_Function(); //HTTP Get Form Server
@@ -682,12 +687,13 @@ void DataPostTask(void *pvParameters)
             else
             {
 
+              ESP_LOGE(TAG, "%d", __LINE__);
               ESP_LOGI(TAG, "HTTP Post failed.\r\n");
 
               osi_System_ERROR_Save(POST_DATA_FLR_ERR); //save ERROR data
 
               err_code_num += 1;
-              MAP_UtilsDelay(40000000); //delay about 3s
+              // MAP_UtilsDelay(40000000); //delay about 3s
             }
 
             if (err_code_num >= RETRY_TIME_OUT)
@@ -701,6 +707,10 @@ void DataPostTask(void *pvParameters)
         // sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
         // MAP_UtilsDelay(80000); //Delay About 6ms
       }
+    }
+    else
+    {
+      ESP_LOGE(TAG, "%d,Rssi_val=%d,wifi_mode=%d", __LINE__, Rssi_val, wifi_mode);
     }
 
     POST_TASK_END_FLAG = 0;
