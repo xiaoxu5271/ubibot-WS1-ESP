@@ -83,7 +83,7 @@
 
 #define UPDATE_TIME_SIZE 30 //1min
 #define SYS_RUN_TIMEOUT 600 //60s
-#define USB_TIME_OUT 750    //15min
+#define USB_TIME_OUT 50     //15min 750
 
 #define DEFAULT_IP_ADDR1 101
 #define DEFAULT_IP_ADDR2 201

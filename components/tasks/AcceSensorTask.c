@@ -205,7 +205,7 @@ void AcceSensor_Int_Task(void *pvParameters)
   for (;;)
   {
     // osi_SyncObjWait(&xBinary12, -1); //Waite GPIO Interrupt Message
-    ulTaskNotifyTake(pdTRUE, -1);
+
     ESP_LOGI(TAG, "%d,ACCE_SRC_WKUP:%d", __LINE__, gpio_get_level(ACCE_SRC_WKUP));
     if (!gpio_get_level(ACCE_SRC_WKUP))
     {
@@ -237,7 +237,8 @@ void AcceSensor_Int_Task(void *pvParameters)
           }
           xMsg.sensornum = TAP_NUM;         //Message Number
           xMsg.sensorval = f7_a * 2 + f7_b; //Message Value
-          xQueueSend(xQueue0, &xMsg, 0);    //Send Acceleration Value
+          ESP_LOGI(TAG, "%d,sensorval=%.4f", __LINE__, xMsg.sensorval);
+          xQueueSend(xQueue0, &xMsg, 0); //Send Acceleration Value
 
           // MAP_UtilsDelay(4000000); //300ms
           vTaskDelay(300 / portTICK_RATE_MS);
@@ -265,6 +266,7 @@ void AcceSensor_Int_Task(void *pvParameters)
         acce_act = 0;
       }
     }
+    ulTaskNotifyTake(pdTRUE, -1);
   }
 }
 
@@ -300,7 +302,8 @@ void AccelerationSensorTask(void *pvParameters)
       {
         aMsg.sensornum = ACCE_NUM;                //Message Number
         aMsg.sensorval = f6_a * accevalue + f6_b; //Message Value
-        xQueueSend(xQueue0, &aMsg, 0);            //send acceleration value
+        ESP_LOGI(TAG, "%d,sensorval=%.4f", __LINE__, aMsg.sensorval);
+        xQueueSend(xQueue0, &aMsg, 0); //send acceleration value
       }
       sys_run_time = 0; //clear system time out
     }

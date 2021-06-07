@@ -29,6 +29,7 @@
 #include "esp_log.h"
 #include "driver/uart.h"
 #include "driver/gpio.h"
+#include "driver/ledc.h"
 
 #include "iic.h"
 #include "at24c08.h"
@@ -86,12 +87,61 @@ extern float f1_a, f1_b, f2_a, f2_b, f3_a, f3_b, f4_a, f4_b, f5_a, f5_b, f6_a, f
 
 extern volatile unsigned long POST_NUM;
 extern volatile unsigned long DELETE_ADDR, POST_ADDR, WRITE_ADDR;
+extern void IRAM_ATTR gpio_isr_handler(void *arg);
+//蜂鸣器
+ledc_channel_config_t ledc_channel = {.channel = LEDC_CHANNEL_0,
+                                      .duty = 0, //初始占空比
+                                      .gpio_num = BELL_PIN,
+                                      .speed_mode = LEDC_HIGH_SPEED_MODE,
+                                      .hpoint = 0,
+                                      .timer_sel = LEDC_TIMER_0};
 
 //新增ESP用任务延时
 void osi_Sleep(uint16_t ms)
 {
   vTaskDelay(ms / portTICK_RATE_MS);
 }
+/*******************************************************************************
+//IO init
+*******************************************************************************/
+void PinMuxConfig(void)
+{
+  gpio_config_t io_conf;
+
+  io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
+  io_conf.mode = GPIO_MODE_OUTPUT;
+  io_conf.pin_bit_mask = (1ULL << G_LED_PIN) | (1ULL << R_LED_PIN);
+  io_conf.pull_down_en = 1;
+  io_conf.pull_up_en = 0;
+  gpio_config(&io_conf);
+
+  io_conf.intr_type = GPIO_INTR_NEGEDGE; //下降沿
+  io_conf.mode = GPIO_MODE_INPUT;
+  io_conf.pull_down_en = 0;
+  io_conf.pull_up_en = 0;
+  io_conf.pin_bit_mask = ((1ULL << BUTTON_PIN) | (1ULL << USB_SRC_WKUP) | (1ULL << ACCE_SRC_WKUP));
+  gpio_config(&io_conf);
+
+  gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
+  gpio_isr_handler_add(BUTTON_PIN, gpio_isr_handler, (void *)BUTTON_PIN);
+  gpio_isr_handler_add(USB_SRC_WKUP, gpio_isr_handler, (void *)USB_SRC_WKUP);
+  gpio_isr_handler_add(ACCE_SRC_WKUP, gpio_isr_handler, (void *)ACCE_SRC_WKUP);
+
+  //无源蜂鸣器用
+  ledc_timer_config_t ledc_timer = {
+      .duty_resolution = LEDC_TIMER_1_BIT, // resolution of PWM duty
+      .freq_hz = 2666,                     // frequency of PWM signal
+      .speed_mode = LEDC_HIGH_SPEED_MODE,  // timer mode
+      .timer_num = LEDC_TIMER_0,           // timer index
+      .clk_cfg = LEDC_AUTO_CLK,            // Auto select the source clock
+  };
+
+  // Set configuration of timer0 for high speed channels
+  ledc_timer_config(&ledc_timer);
+  ledc_channel_config(&ledc_channel);
+  ledc_fade_func_install(0);
+}
+
 /*******************************************************************************
 //Green led flashed on_time*150ms
 *******************************************************************************/
@@ -312,18 +362,23 @@ void Green_LedControl_Task(void *pvParameters)
 *******************************************************************************/
 void bell_makeSound(uint32_t n_bel)
 {
-  uint16_t bel;
+  // uint16_t bel;
 
-  for (bel = 0; bel < n_bel; bel++)
-  {
-    SET_BELL_ON();
+  // for (bel = 0; bel < n_bel; bel++)
+  // {
+  //   SET_BELL_ON();
 
-    MAP_UtilsDelay(2500);
+  //   MAP_UtilsDelay(2500);
 
-    SET_BELL_OFF();
+  //   SET_BELL_OFF();
 
-    MAP_UtilsDelay(2500);
-  }
+  //   MAP_UtilsDelay(2500);
+  // }
+  ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, 1);
+  ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
+  vTaskDelay(n_bel / portTICK_RATE_MS);
+  ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, 0);
+  ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
 }
 
 /*******************************************************************************
@@ -1193,13 +1248,6 @@ short Read_PostDataLen(unsigned long start_addr, unsigned long *end_addr, uint16
 
   data_len = strlen("{\"feeds\":[");
 
-  ESP_LOGI(TAG, "%d,start_addr=%ld,end_addr=%ld,read_num=%d,post_num=%d,post_data_len=%ld", __LINE__,
-           start_addr,
-           *end_addr,
-           read_num,
-           *post_num,
-           *post_data_len);
-
   for (i_read = 0; i_read < read_num; i_read++)
   {
     if ((start_addr + SAVE_DATA_SIZE) > Memory_Max_Addr) //when write WRITE_ADDR+sizeof(buffer)<=Memory_Max_Addr,WRITE_ADDR=0
@@ -1210,7 +1258,6 @@ short Read_PostDataLen(unsigned long start_addr, unsigned long *end_addr, uint16
     for (read_try = 0; read_try < RETRY_TIME_OUT; read_try++)
     {
       read_flag = osi_w25q_ReadData(start_addr, read_buf, SAVE_DATA_SIZE, &read_data_size); //read data
-      ESP_LOGI(TAG, "%d,read_flag=%d,read_buf=%s", __LINE__, read_flag, read_buf);
 
       if (read_flag >= 0)
       {

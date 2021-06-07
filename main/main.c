@@ -209,6 +209,7 @@ char web_resp_buf[24] = {0};
 
 void UpdateTimeTask(void *pvParameters);
 void ApikeyGetTask(void *pvParameters);
+void IRAM_ATTR gpio_isr_handler(void *arg);
 
 extern void WlanAPMode(void *pvParameters);
 
@@ -279,7 +280,7 @@ void Enter_Sleep(void)
 	const uint64_t ext_wakeup_pin_2_mask = 1ULL << ext_wakeup_pin_2;
 
 	printf("Enabling EXT1 wakeup on pins GPIO%d, GPIO%d\n", ext_wakeup_pin_1, ext_wakeup_pin_2);
-	esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask | ext_wakeup_pin_2_mask, ESP_EXT1_WAKEUP_ALL_LOW);
+	esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask, ESP_EXT1_WAKEUP_ALL_LOW);
 
 	printf("Entering deep sleep\n");
 	esp_deep_sleep_start();
@@ -561,6 +562,8 @@ void Set_GPIO_AsWkUp(void)
 static void Sensor_Power_OFF(void)
 {
 	ADXL345_Power_Down(); //Acce Sensor power down
+	osi_adx345_readReg(INT_SOURCE);
+	ESP_LOGI(TAG, "%d,ACCE_SRC_WKUP:%d", __LINE__, gpio_get_level(ACCE_SRC_WKUP));
 
 #ifdef USE_LCD
 
@@ -1729,7 +1732,7 @@ void timer_app_cb(void *arg)
 /*******************************************************************************
 //callback function for gpio interrupt handler
 *******************************************************************************/
-static void IRAM_ATTR gpio_isr_handler(void *arg)
+void IRAM_ATTR gpio_isr_handler(void *arg)
 {
 	uint32_t gpio_num = (uint32_t)arg;
 
@@ -1752,32 +1755,6 @@ static void IRAM_ATTR gpio_isr_handler(void *arg)
 		if (xBinary15 != NULL)
 			vTaskNotifyGiveFromISR(xBinary15, NULL);
 	}
-}
-/*******************************************************************************
-//IO init
-*******************************************************************************/
-void PinMuxConfig(void)
-{
-	gpio_config_t io_conf;
-
-	io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
-	io_conf.mode = GPIO_MODE_OUTPUT;
-	io_conf.pin_bit_mask = (1ULL << G_LED_PIN) | (1ULL << R_LED_PIN) | (1ULL << BELL_PIN);
-	io_conf.pull_down_en = 1;
-	io_conf.pull_up_en = 0;
-	gpio_config(&io_conf);
-
-	io_conf.intr_type = GPIO_INTR_NEGEDGE; //下降沿
-	io_conf.mode = GPIO_MODE_INPUT;
-	io_conf.pull_down_en = 0;
-	io_conf.pull_up_en = 0;
-	io_conf.pin_bit_mask = ((1ULL << BUTTON_PIN) | (1ULL << USB_SRC_WKUP) | (1ULL << ACCE_SRC_WKUP));
-	gpio_config(&io_conf);
-
-	gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
-	gpio_isr_handler_add(BUTTON_PIN, gpio_isr_handler, (void *)BUTTON_PIN);
-	gpio_isr_handler_add(USB_SRC_WKUP, gpio_isr_handler, (void *)USB_SRC_WKUP);
-	gpio_isr_handler_add(ACCE_SRC_WKUP, gpio_isr_handler, (void *)ACCE_SRC_WKUP);
 }
 
 /*******************************************************************************
