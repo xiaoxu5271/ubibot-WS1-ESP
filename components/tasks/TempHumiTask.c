@@ -62,7 +62,7 @@ void TempHumiSensorTask(void *pvParameters)
 
       thMsg.sensornum = TEMP_NUM;                //Message Number
       thMsg.sensorval = f1_a * tempvalue + f1_b; //Message Value
-      xQueueSend(xQueue0, &thMsg, 0);            //Send Temperature Data Message
+      xQueueSend(xQueue0, &thMsg, 0); //Send Temperature Data Message
     }
 
     if (humivalue != ERROR_CODE)
@@ -75,7 +75,7 @@ void TempHumiSensorTask(void *pvParameters)
 
       thMsg.sensornum = HUMI_NUM;                //Message Number
       thMsg.sensorval = f2_a * humivalue + f2_b; //Message Value
-      xQueueSend(xQueue0, &thMsg, 0);            //Send Humility Data Message
+      xQueueSend(xQueue0, &thMsg, 0); //Send Humility Data Message
     }
   }
 }

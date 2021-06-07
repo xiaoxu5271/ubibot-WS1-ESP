@@ -43,6 +43,8 @@
 #include "PeripheralDriver.h"
 // #include "ht1621.h"
 
+#define TAG "PeripheralDriver"
+
 extern QueueHandle_t xQueue1;     //Used for LED control task
 extern QueueHandle_t xQueue2;     //Used for bell conctrol task
 extern SemaphoreHandle_t xMutex1; //Used for SPI Lock
@@ -1191,6 +1193,13 @@ short Read_PostDataLen(unsigned long start_addr, unsigned long *end_addr, uint16
 
   data_len = strlen("{\"feeds\":[");
 
+  ESP_LOGI(TAG, "%d,start_addr=%ld,end_addr=%ld,read_num=%d,post_num=%d,post_data_len=%ld", __LINE__,
+           start_addr,
+           *end_addr,
+           read_num,
+           *post_num,
+           *post_data_len);
+
   for (i_read = 0; i_read < read_num; i_read++)
   {
     if ((start_addr + SAVE_DATA_SIZE) > Memory_Max_Addr) //when write WRITE_ADDR+sizeof(buffer)<=Memory_Max_Addr,WRITE_ADDR=0
@@ -1201,6 +1210,7 @@ short Read_PostDataLen(unsigned long start_addr, unsigned long *end_addr, uint16
     for (read_try = 0; read_try < RETRY_TIME_OUT; read_try++)
     {
       read_flag = osi_w25q_ReadData(start_addr, read_buf, SAVE_DATA_SIZE, &read_data_size); //read data
+      ESP_LOGI(TAG, "%d,read_flag=%d,read_buf=%s", __LINE__, read_flag, read_buf);
 
       if (read_flag >= 0)
       {

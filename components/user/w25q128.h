@@ -13,7 +13,7 @@
 /*-------------------------------- Includes ----------------------------------*/
 #include "freertos/FreeRTOS.h"
 
-#define SAVE_DATA_SIZE 65
+#define SAVE_DATA_SIZE 100
 #define Memory_Min_Addr 0
 #define Memory_Max_Addr 0xffffff
 

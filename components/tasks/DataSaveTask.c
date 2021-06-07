@@ -112,6 +112,7 @@ void DataSaveTask(void *pvParameters)
 {
   char fields[9];
   char utctime[21];
+  char sensorval_buf[20];
   char *OutBuffer;
   cJSON *pJsonRoot;
   SensorMessage xMsg;
@@ -136,7 +137,8 @@ void DataSaveTask(void *pvParameters)
 
     cJSON_AddStringToObject(pJsonRoot, "created_at", utctime);
 
-    cJSON_AddNumberToObject(pJsonRoot, fields, (float)xMsg.sensorval);
+    snprintf(sensorval_buf, sizeof(sensorval_buf), "%.4f", xMsg.sensorval);
+    cJSON_AddStringToObject(pJsonRoot, fields, sensorval_buf);
 
     OutBuffer = cJSON_PrintUnformatted(pJsonRoot); //cJSON_Print(Root)
 
@@ -178,7 +180,9 @@ void DataSaveTask(void *pvParameters)
 
             while (det_data_sum)
             {
+              xSemaphoreTake(xMutex7, -1);
               Read_PostDataLen(POST_ADDR, &det_data_end_addr, det_data_sum, &det_data_num, NULL);
+              xSemaphoreGive(xMutex7);
 
               PostAddrChage(det_data_num, det_data_end_addr); //change the point
 
@@ -204,7 +208,9 @@ void DataSaveTask(void *pvParameters)
 
           while (det_data_sum)
           {
+            xSemaphoreTake(xMutex7, -1);
             Read_PostDataLen(POST_ADDR, &det_data_end_addr, det_data_sum, &det_data_num, NULL);
+            xSemaphoreGive(xMutex7);
 
             PostAddrChage(det_data_num, det_data_end_addr); //change the point
 

@@ -622,13 +622,14 @@ void DataPostTask(void *pvParameters)
         Read_cali(calidata_buf, sizeof(calidata_buf)); // cali data
 
         ESP_LOGI(TAG, "%d", __LINE__);
+
         while (POST_NUM)
         {
           sys_run_time = 0; //clear wifi post time
-
+          xSemaphoreTake(xMutex7, -1);
           read_data_num = POST_NUM > POST_DATA_NUMBER ? POST_DATA_NUMBER : POST_NUM; //read post data len
-
           lRetVal = Read_PostDataLen(POST_ADDR, &read_data_end_addr, read_data_num, &post_data_num, &post_data_len);
+          xSemaphoreGive(xMutex7);
           if (lRetVal < 0)
           {
             ESP_LOGE(TAG, "%d", __LINE__);
@@ -702,6 +703,7 @@ void DataPostTask(void *pvParameters)
             }
           }
         }
+
         Wlan_Disconnect_AP(); //wlan disconnect form the ap
 
         // sl_Stop(SL_STOP_TIMEOUT); //stop the simple link

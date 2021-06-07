@@ -33,6 +33,8 @@ extern SemaphoreHandle_t xMutex5; //Used for Post_Data_Buffer Lock
 
 extern char Post_Data_Buffer[4096];
 
+static void w25q_Read_Data(uint32_t addr, char *buffer, uint16_t size);
+
 /*******************************************************************************
   nor flash spi start
 *******************************************************************************/
@@ -238,7 +240,8 @@ static void w25q_WritePage(uint32_t addr, char *buffer, uint8_t Size, uint8_t en
 
   if (end_flag)
   {
-    SPI_Write('!'); //write End Flag
+    SPI_Write((uint8_t)'!'); //write End Flag
+    ESP_LOGI(TAG, "%d", __LINE__);
   }
 
   Flash_Spi_Stop(); //nor flash spi stop
