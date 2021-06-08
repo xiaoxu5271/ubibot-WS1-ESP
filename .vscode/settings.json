@@ -62,7 +62,9 @@
                 "cstring": "c",
                 "ratio": "c",
                 "accesensortask.h": "c",
-                "temphumitask.h": "c"
+                "temphumitask.h": "c",
+                "ledc.h": "c",
+                "event_groups.h": "c"
         },
         "idf.flashType": "UART",
 }

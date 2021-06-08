@@ -83,7 +83,9 @@ void PowerMeasureTask(void *pvParameters)
   for (;;)
   {
     // osi_SyncObjWait(&xBinary7,-1);  //Wait Timer Interrupt Message
+    xEventGroupSetBits(Task_Group, SENTASK_7);
     ulTaskNotifyTake(pdTRUE, -1);
+    xEventGroupClearBits(Task_Group, SENTASK_7);
 
     for (err_val = 0; err_val < 3; err_val++)
     {

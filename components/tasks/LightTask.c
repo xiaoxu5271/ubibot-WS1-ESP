@@ -47,7 +47,9 @@ void LightSensorTask(void *pvParameters)
   for (;;)
   {
     // osi_SyncObjWait(&xBinary3,-1);  //Wait Timer Interrupt Message
+    xEventGroupSetBits(Task_Group, SENTASK_3);
     ulTaskNotifyTake(pdTRUE, -1);
+    xEventGroupClearBits(Task_Group, SENTASK_3);
 
     osi_OPT3001_value(&lightvalue); //Read Light Value
     ESP_LOGI(TAG, "lightvalue=%04f", lightvalue);

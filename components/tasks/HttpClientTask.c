@@ -561,6 +561,7 @@ void DataPostTask(void *pvParameters)
   for (;;)
   {
     // osi_SyncObjWait(&xBinary0,-1);  //Wait For The Operation Message
+    xEventGroupSetBits(Task_Group, POST_TASK_BIT);
     ulTaskNotifyTake(pdTRUE, -1);
     xEventGroupClearBits(Task_Group, POST_TASK_BIT);
     ESP_LOGI(TAG, "%d", __LINE__);
@@ -716,7 +717,6 @@ void DataPostTask(void *pvParameters)
     }
 
     POST_TASK_END_FLAG = 0;
-    xEventGroupSetBits(Task_Group, POST_TASK_BIT);
 
     //  xSemaphoreGive(xMutex2); //SimpleLink Semaphore Give
     xSemaphoreGive(xMutex2);

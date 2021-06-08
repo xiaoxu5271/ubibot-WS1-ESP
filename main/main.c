@@ -364,6 +364,7 @@ void Web_read_errcode(void)
 
 /*******************************************************************************
 //calculat the fn min sleep time
+找到 fn_ 里最小值
 *******************************************************************************/
 static long fn_sleep_time_min(void)
 {
@@ -581,29 +582,23 @@ void Timer_Check_Task(void *pvParameters)
 
 	for (;;)
 	{
+		xEventGroupSetBits(Task_Group, TIMER_CHECK_BIT);
 		// osi_SyncObjWait(&xBinary9, -1); //Wait Task Operation Message
 		ulTaskNotifyTake(pdTRUE, -1);
+		xEventGroupClearBits(Task_Group, TIMER_CHECK_BIT);
 
 		osi_Read_UnixTime(); //update system unix time
 
-#ifdef DEBUG
+		ESP_LOGI(TAG, "now_unix_t:%ld", now_unix_t);
 
-		osi_UartPrint_Val("now_unix_t:", now_unix_t);
+		ESP_LOGI(TAG, "fn_dp:%ld", fn_dp);
 
-#endif
-
-#ifdef DEBUG
-
-		osi_UartPrint_Val("fn_dp:", fn_dp);
-
-		osi_UartPrint_Val("fn_dp_t:", fn_dp_t);
-
-#endif
+		ESP_LOGI(TAG, "fn_dp_t:%ld", fn_dp_t);
 
 		if (((now_unix_t >= fn_dp_t) || (fn_dp_t >= (now_unix_t + MAX_SLP_TIME))) && fn_dp) //fn_dp_t
 		{
 			fn_dp_t = now_unix_t + fn_dp;
-
+			ESP_LOGI(TAG, "%d", __LINE__);
 			// osi_SyncObjSignalFromISR(&xBinary0); //Data Post Task
 			if (xBinary0 != NULL)
 				vTaskNotifyGiveFromISR(xBinary0, NULL);
@@ -611,18 +606,15 @@ void Timer_Check_Task(void *pvParameters)
 			osi_at24c08_write(FN_DP_T_ADDR, fn_dp_t);
 		}
 
-#ifdef DEBUG
+		ESP_LOGI(TAG, "fn_th:%ld", fn_th);
 
-		osi_UartPrint_Val("fn_th:", fn_th);
-
-		osi_UartPrint_Val("fn_th_t:", fn_th_t);
-
-#endif
+		ESP_LOGI(TAG, "fn_th_t:%ld", fn_th_t);
 
 		if (((now_unix_t >= fn_th_t) || (fn_th_t >= (now_unix_t + MAX_SLP_TIME))) && fn_th) //fn_th_t
 		{
 			fn_th_t = now_unix_t + fn_th;
 
+			ESP_LOGI(TAG, "%d,fn_th_t=%ld", __LINE__, fn_th_t);
 			// osi_SyncObjSignalFromISR(&xBinary2); //Temp&Humi Sensor Task
 			if (xBinary2 != NULL)
 				vTaskNotifyGiveFromISR(xBinary2, NULL);
@@ -630,18 +622,14 @@ void Timer_Check_Task(void *pvParameters)
 			osi_at24c08_write(FN_TH_T_ADDR, fn_th_t);
 		}
 
-#ifdef DEBUG
+		ESP_LOGI(TAG, "fn_light:%ld", fn_light);
 
-		osi_UartPrint_Val("fn_light:", fn_light);
-
-		osi_UartPrint_Val("fn_light_t:", fn_light_t);
-
-#endif
+		ESP_LOGI(TAG, "fn_light_t:%ld", fn_light_t);
 
 		if (((now_unix_t >= fn_light_t) || (fn_light_t >= (now_unix_t + MAX_SLP_TIME))) && fn_light) //fn_light_t
 		{
 			fn_light_t = now_unix_t + fn_light;
-
+			ESP_LOGI(TAG, "%d", __LINE__);
 			// osi_SyncObjSignalFromISR(&xBinary3); //Light Sensor Task
 			if (xBinary3 != NULL)
 				vTaskNotifyGiveFromISR(xBinary3, NULL);
@@ -652,9 +640,9 @@ void Timer_Check_Task(void *pvParameters)
 #ifdef MAG_SENSOR
 #ifdef DEBUG
 
-		osi_UartPrint_Val("fn_mag:", fn_mag);
+		ESP_LOGI(TAG, "fn_mag:", fn_mag);
 
-		osi_UartPrint_Val("fn_mag_t:", fn_mag_t);
+		ESP_LOGI(TAG, "fn_mag_t:", fn_mag_t);
 
 #endif
 
@@ -670,13 +658,9 @@ void Timer_Check_Task(void *pvParameters)
 		}
 #endif
 
-#ifdef DEBUG
+		ESP_LOGI(TAG, "fn_ext:%ld", fn_ext);
 
-		osi_UartPrint_Val("fn_ext:", fn_ext);
-
-		osi_UartPrint_Val("fn_ext_t:", fn_ext_t);
-
-#endif
+		ESP_LOGI(TAG, "fn_ext_t:%ld", fn_ext_t);
 
 		if (((now_unix_t >= fn_ext_t) || (fn_ext_t >= (now_unix_t + MAX_SLP_TIME))) && fn_ext) //fn_ext_t
 		{
@@ -691,9 +675,9 @@ void Timer_Check_Task(void *pvParameters)
 
 #ifdef DEBUG
 
-		osi_UartPrint_Val("fn_battery:", fn_battery);
+		ESP_LOGI(TAG, "fn_battery:", fn_battery);
 
-		osi_UartPrint_Val("fn_battery_t:", fn_battery_t);
+		ESP_LOGI(TAG, "fn_battery_t:", fn_battery_t);
 
 #endif
 
@@ -729,59 +713,59 @@ void WaterMark_Check(void *pvParameters)
 
 		watermark = uxTaskGetStackHighWaterMark(UpdateTimeTaskHandle);
 
-		osi_UartPrint_Val("UpdateTimeTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "UpdateTimeTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(UartParseTaskHandle);
 
-		osi_UartPrint_Val("UartParseTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "UartParseTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(ButtonPush_Int_TaskHandle);
 
-		osi_UartPrint_Val("ButtonPush_Int_TaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "ButtonPush_Int_TaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(MagneticSensorTaskHandle);
 
-		osi_UartPrint_Val("MagneticSensorTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "MagneticSensorTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(Green_LedControl_TaskHandle);
 
-		osi_UartPrint_Val("Green_LedControl_TaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "Green_LedControl_TaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(Bell_Control_TaskHandle);
 
-		osi_UartPrint_Val("Bell_Control_TaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "Bell_Control_TaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(TempHumiTaskHandle);
 
-		osi_UartPrint_Val("TempHumiTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "TempHumiTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(LightTaskHandle);
 
-		osi_UartPrint_Val("LightTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "LightTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(ExtTempMeasureTaskHandle);
 
-		osi_UartPrint_Val("ExtTempMeasureTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "ExtTempMeasureTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(PowerMeasureTaskHandle);
 
-		osi_UartPrint_Val("PowerMeasureTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "PowerMeasureTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(DataSaveTaskHandle);
 
-		osi_UartPrint_Val("DataSaveTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "DataSaveTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(DataPostTaskHandle);
 
-		osi_UartPrint_Val("DataPostTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "DataPostTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(Memory_DeleteTaskHandle);
 
-		osi_UartPrint_Val("Memory_DeleteTaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "Memory_DeleteTaskWaterMark:", watermark);
 
 		watermark = uxTaskGetStackHighWaterMark(Timer_Check_TaskHandle);
 
-		osi_UartPrint_Val("Timer_Check_TaskWaterMark:", watermark);
+		ESP_LOGI(TAG, "Timer_Check_TaskWaterMark:", watermark);
 	}
 }
 
@@ -841,6 +825,8 @@ void Usb_Mode_Task(void *pvParameters)
 
 	for (;;)
 	{
+		//否则无法进入休眠
+		xEventGroupSetBits(Task_Group, USB_MODE_BIT);
 		// osi_SyncObjWait(&xBinary15, -1); //Wait Task Operation Message
 		ulTaskNotifyTake(pdTRUE, -1);
 		xEventGroupClearBits(Task_Group, USB_MODE_BIT);
@@ -889,9 +875,9 @@ void Usb_Mode_Task(void *pvParameters)
 
 			if (usb_t >= USB_TIME_OUT)
 			{
+				ESP_LOGI(TAG, "%d", __LINE__);
 				usb_status = 1;
 				osi_at24c08_write_byte(USB_FLAG_ADDR, usb_status);
-				xEventGroupSetBits(Task_Group, USB_MODE_BIT);
 				break;
 			}
 			sys_run_time = 0; //clear system time out
@@ -907,46 +893,58 @@ static void WakeUp_Process(void)
 	// usb_status_val = gpio_get_level(USB_PIN);
 	usb_status_val = gpio_get_level(USB_PIN);
 
-	// if (!gpio_get_level(BUTTON_PIN)) //BUTTON GPIO Wake Up
-	if (!gpio_get_level(BUTTON_PIN))
+	switch (esp_sleep_get_wakeup_cause())
 	{
-		// osi_SyncObjSignalFromISR(&xBinary1);
+	case ESP_SLEEP_WAKEUP_EXT1:
+	{
 		if (xBinary1 != NULL)
-			vTaskNotifyGiveFromISR(xBinary1, NULL);
+		{
+			// vTaskNotifyGiveFromISR(xBinary1, NULL);
+			xTaskNotify(xBinary1, 0xff, eSetBits);
+			ESP_LOGI(TAG, "%d", __LINE__);
+		}
+		break;
 	}
 
+	case ESP_SLEEP_WAKEUP_TIMER:
+	{
+		ESP_LOGI(TAG, "Wake up from timer. Time spent in deep sleep: ms\n");
+		break;
+	}
+
+	case ESP_SLEEP_WAKEUP_UNDEFINED:
+	default:
+	{
+		ESP_LOGI(TAG, "Not a deep sleep reset\n");
+	}
+	}
+
+	// if (!gpio_get_level(BUTTON_PIN))
+	// {
+	// 	if (xBinary1 != NULL)
+	// 	{
+	// 		// vTaskNotifyGiveFromISR(xBinary1, NULL);
+	// 		xTaskNotify(xBinary1, 1, eIncrement);
+	// 		ESP_LOGI(TAG, "%d", __LINE__);
+	// 	}
+	// }
 	// if (!GPIOPinRead(ACCE_PORT, ACCE_PIN)) //Acceleration Sensor GPIO Wake Up
 	if (!gpio_get_level(ACCE_SRC_WKUP))
 	{
 		// osi_SyncObjSignalFromISR(&xBinary12);
 		if (xBinary12 != NULL)
+		{
 			vTaskNotifyGiveFromISR(xBinary12, NULL);
-	}
-
-#ifdef MAG_SENSOR
-	if (!GPIOPinRead(MAG_PORT, MAG_PIN)) //MAG Sensor GPIO Wake Up
-	{
-		if (door_status)
-		{
-			// osi_SyncObjSignalFromISR(&xBinary4);
-			if (xBinary4 != NULL)
-				vTaskNotifyGiveFromISR(xBinary4, NULL);
+			ESP_LOGI(TAG, "%d", __LINE__);
 		}
 	}
-	else
-	{
-		if (!door_status)
-		{
-			// osi_SyncObjSignalFromISR(&xBinary4);
-			if (xBinary4 != NULL)
-				vTaskNotifyGiveFromISR(xBinary4, NULL);
-		}
-	}
-#endif
 
 	// osi_SyncObjSignalFromISR(&xBinary9); //Start TIMERA0 Interrupt Task
 	if (xBinary9 != NULL)
+	{
 		vTaskNotifyGiveFromISR(xBinary9, NULL);
+		ESP_LOGI(TAG, "%d", __LINE__);
+	}
 }
 
 /*******************************************************************************
@@ -957,10 +955,6 @@ void MainTask_Create(void *pvParameters)
 	xEventGroupClearBits(Task_Group, MAIN_INIT_BIT);
 	if (xBinary13 != NULL)
 		vTaskNotifyGiveFromISR(xBinary13, NULL);
-
-	// OsiTaskHandle Create_TaskHandle = NULL;
-
-	WakeUp_Process(); //GPIO or Timer Wake Up Process
 
 	osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
 
@@ -993,10 +987,11 @@ void MainTask_Create(void *pvParameters)
 	my_xTaskCreate(Memory_DeleteTask, "Memory_DeleteTask", 640, NULL, 5, &xBinary11); //Create Memory_DeleteTask
 
 #ifdef CHECK_WATER_MARK
-
 	my_xTaskCreate(WaterMark_Check, "WaterMark_Check", 512, NULL, 7, &xBinary14);
-
 #endif
+
+	WakeUp_Process(); //GPIO or Timer Wake Up Process
+
 	ESP_LOGI(TAG, "%d", __LINE__);
 
 	xEventGroupSetBits(Task_Group, MAIN_INIT_BIT);
@@ -1328,13 +1323,19 @@ void F_ResetTask(void *pvParameters)
 void ButtonPush_Int_Task(void *pvParameters)
 {
 	uint8_t Button_Push;
+	uint32_t Notify_val;
 
 	for (;;)
 	{
 		// osi_SyncObjWait(&xBinary1, -1); //Waite Button GPIO Interrupt Message
-		ulTaskNotifyTake(pdTRUE, -1);
+		xEventGroupSetBits(Task_Group, BUTTON_INT_BIT);
+		Notify_val = ulTaskNotifyTake(pdTRUE, -1);
+		xEventGroupClearBits(Task_Group, BUTTON_INT_BIT);
+
+		ESP_LOGI(TAG, "%d,Notify_val=%d", __LINE__, Notify_val);
+
 		vTaskDelay(10 / portTICK_RATE_MS);
-		if (!gpio_get_level(BUTTON_PIN))
+		if ((!gpio_get_level(BUTTON_PIN)) || Notify_val == 0xff)
 		{
 			ESP_LOGI(TAG, "%d，ACCE_SRC_WKUP:%d", __LINE__, gpio_get_level(ACCE_SRC_WKUP));
 			Button_Push = 0;
@@ -1380,6 +1381,7 @@ void ButtonPush_Int_Task(void *pvParameters)
 				osi_bell_makeSound(200); //Bell make a sound,200 times
 
 				data_post = 1; //Save Then Post Data
+				ESP_LOGI(TAG, "%d", __LINE__);
 
 				if ((xEventGroupWaitBits(Task_Group, MAIN_INIT_BIT, false, false, -1) & MAIN_INIT_BIT) == MAIN_INIT_BIT)
 				{
@@ -1399,6 +1401,7 @@ void ButtonPush_Int_Task(void *pvParameters)
 					if (xBinary7 != NULL)
 						vTaskNotifyGiveFromISR(xBinary7, NULL);
 				}
+				ESP_LOGI(TAG, "%d", __LINE__);
 			}
 		}
 	}
@@ -1490,6 +1493,10 @@ void Tasks_Check_Task(void *pvParameters)
 		{
 			ESP_LOGI(TAG, "%d", __LINE__);
 			Enter_Sleep();
+		}
+		else
+		{
+			/* code */
 		}
 
 		// if (cg_data_led)
@@ -1809,7 +1816,7 @@ void app_main(void)
 			//UART初始化
 			Set_Uart_Int_Source(); //Set Peripheral Interrupt Source
 
-			//wifi初始化
+			// wifi初始化
 			init_wifi();
 			//初始化睡眠唤醒，ESP可在进入中断前再进行设置
 			// Set_GPIO_AsWkUp();								  //setting GPIO wakeup source

@@ -112,14 +112,39 @@
 #define my_xTaskCreate(TaskCode, Name, Depth, Parameters, Priority, Handle) xTaskCreate(TaskCode, Name, Depth * 5, Parameters, Priority + 2, Handle)
 
 EventGroupHandle_t Task_Group;
-#define POST_TASK_BIT (1 << 0)       //网络连接
-#define UPDATETIME_TASK_BIT (1 << 1) //激活
-#define APIGET_TASK_BIT (1 << 2)     //WIFI MQTT 启动
-#define AP_MODE_END_BIT (1 << 3)     //ec20 MQTT 启动
-#define MAIN_INIT_BIT (1 << 4)       //WIFI MQTT 连接
-#define USB_MODE_BIT (1 << 5)        //WIFI MQTT 连接
+#define POST_TASK_BIT (1 << 0)       //
+#define UPDATETIME_TASK_BIT (1 << 1) //
+#define APIGET_TASK_BIT (1 << 2)     //
+#define AP_MODE_END_BIT (1 << 3)     //
+#define MAIN_INIT_BIT (1 << 4)       //
+#define USB_MODE_BIT (1 << 5)        //
+#define TIMER_CHECK_BIT (1 << 6)     //
+#define BUTTON_INT_BIT (1 << 7)      //
+#define SENTASK_2 (1 << 8)           //
+#define SENTASK_3 (1 << 9)           //
+#define SENTASK_5 (1 << 10)          //
+#define SENTASK_6 (1 << 11)          //
+#define SENTASK_7 (1 << 12)          //
+#define SENTASK_12 (1 << 13)         //
+#define SAVE_TASK_BIT (1 << 14)      //
+#define DELE_TASK_BIT (1 << 15)      //
 
-#define ALL_BIT (POST_TASK_BIT | UPDATETIME_TASK_BIT | APIGET_TASK_BIT | AP_MODE_END_BIT | MAIN_INIT_BIT | USB_MODE_BIT)
+#define ALL_BIT (POST_TASK_BIT |       \
+                 UPDATETIME_TASK_BIT | \
+                 APIGET_TASK_BIT |     \
+                 AP_MODE_END_BIT |     \
+                 MAIN_INIT_BIT |       \
+                 USB_MODE_BIT |        \
+                 TIMER_CHECK_BIT |     \
+                 BUTTON_INT_BIT |      \
+                 SENTASK_2 |           \
+                 SENTASK_3 |           \
+                 SENTASK_5 |           \
+                 SENTASK_6 |           \
+                 SENTASK_7 |           \
+                 SENTASK_12 |          \
+                 SAVE_TASK_BIT |       \
+                 DELE_TASK_BIT)
 
 typedef struct
 {

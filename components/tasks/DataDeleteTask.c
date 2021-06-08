@@ -130,7 +130,9 @@ void Memory_DeleteTask(void *pvParameters)
   for (;;)
   {
     // osi_SyncObjWait(&xBinary11,-1);  //wait task start message
+    xEventGroupSetBits(Task_Group, DELE_TASK_BIT);
     ulTaskNotifyTake(pdTRUE, -1);
+    xEventGroupClearBits(Task_Group, DELE_TASK_BIT);
 
     osi_Erase_Memory(); //Erase memory
   }

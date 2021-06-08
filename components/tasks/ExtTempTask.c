@@ -38,7 +38,9 @@ void ExtTempMeasureTask(void *pvParameters)
   for (;;)
   {
     // osi_SyncObjWait(&xBinary6,-1);  //Wait Timer Interrupt Message
+    xEventGroupSetBits(Task_Group, SENTASK_6);
     ulTaskNotifyTake(pdTRUE, -1);
+    xEventGroupClearBits(Task_Group, SENTASK_6);
 
     water_temp = osi_ds18b20_get_temp(); //measure the temperature
 

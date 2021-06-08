@@ -125,7 +125,10 @@ void DataSaveTask(void *pvParameters)
   for (;;)
   {
     // osi_MsgQRead(&xQueue0, &xMsg, -1); //Wait Sensor Value Message
+
+    xEventGroupSetBits(Task_Group, SAVE_TASK_BIT);
     xQueueReceive(xQueue0, &xMsg, portMAX_DELAY);
+    xEventGroupClearBits(Task_Group, SAVE_TASK_BIT);
 
     osi_Read_UTCtime(utctime, sizeof(utctime)); //read time
 

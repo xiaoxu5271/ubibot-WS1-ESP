@@ -29,6 +29,7 @@
 #include "esp_log.h"
 #include "driver/uart.h"
 #include "driver/gpio.h"
+#include "driver/rtc_io.h"
 #include "driver/ledc.h"
 
 #include "iic.h"
@@ -106,6 +107,9 @@ void osi_Sleep(uint16_t ms)
 *******************************************************************************/
 void PinMuxConfig(void)
 {
+  // rtc_gpio_deinit(BUTTON_PIN);
+  // rtc_gpio_deinit(ACCE_SRC_WKUP);
+
   gpio_config_t io_conf;
 
   io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
@@ -1111,20 +1115,26 @@ void osi_OperateData_Read(void)
 void OperateData_Init(void)
 {
   fn_th_t = now_unix_t + fn_th;
+  ESP_LOGI(TAG, "fn_th_t=%ld", fn_th_t);
 
   fn_light_t = now_unix_t + fn_light;
+  ESP_LOGI(TAG, "fn_light_t=%ld", fn_light_t);
 
 #ifdef MAG_SENSOR
   fn_mag_t = now_unix_t + fn_mag;
 #endif
 
   fn_bt_t = now_unix_t + fn_bt;
+  ESP_LOGI(TAG, "fn_bt_t=%ld", fn_bt_t);
 
   fn_ext_t = now_unix_t + fn_ext;
+  ESP_LOGI(TAG, "fn_ext_t=%ld", fn_ext_t);
 
   fn_battery_t = now_unix_t + fn_battery;
+  ESP_LOGI(TAG, "fn_battery_t=%ld", fn_battery_t);
 
   fn_dp_t = now_unix_t + fn_dp;
+  ESP_LOGI(TAG, "fn_dp_t=%ld", fn_dp_t);
 }
 
 /*******************************************************************************
