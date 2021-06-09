@@ -44,6 +44,19 @@ extern char SEC_TYPE[8];
 extern char SSID_NAME[32];
 extern char PASS_WORD[64];
 
+extern bool ap_mode_status;
+extern bool AP_MODE_END_FLAG;
+extern TaskHandle_t xBinary13; //Task End Check
+extern TaskHandle_t GR_LED_TaskHandle;
+extern TaskHandle_t GR_LED_FAST_TaskHandle;
+extern char UartGet[UART_REV_BUF_LEN];
+extern volatile unsigned long POST_NUM;
+extern volatile unsigned long DELETE_ADDR, POST_ADDR, WRITE_ADDR;
+extern volatile uint16_t sys_run_time;
+
+extern void UpdateTimeTask(void *pvParameters);
+extern void ApikeyGetTask(void *pvParameters);
+
 extern SemaphoreHandle_t xMutex2; //Used for SimpleLink Lock
 extern SemaphoreHandle_t xMutex4; //Used for UART Lock
 
@@ -77,7 +90,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED)
     {
-        esp_timer_start_once(timer_wifi_handle, 15000 * 1000);
+        esp_timer_start_once(timer_wifi_handle, 10000 * 1000);
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
     {
@@ -126,6 +139,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 
 void init_wifi(void) //
 {
+    xEventGroupSetBits(Net_sta_group, WIFI_S_I_BIT);
     char temp[6] = {0};
     char series_number[16] = {0};
     // tcpip_adapter_init();
@@ -158,8 +172,8 @@ void init_wifi(void) //
     memcpy(temp, series_number, 5);
     snprintf(AP_SSID, 15, "Ubibot-%s", temp);
     ESP_LOGI(TAG, "AP_SSID:%s", AP_SSID);
-    //创建TCP监听端口 ，常开
-    // my_xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 7, NULL);
+
+    xEventGroupSetBits(Net_sta_group, WIFI_I_BIT);
 }
 
 void stop_user_wifi(void)
@@ -183,6 +197,16 @@ void stop_user_wifi(void)
 
 void start_user_wifi(void)
 {
+    //是否开启初始化
+    if ((xEventGroupGetBits(Net_sta_group) & WIFI_S_I_BIT) == WIFI_S_I_BIT)
+    {
+        xEventGroupWaitBits(Net_sta_group, WIFI_I_BIT, false, false, -1);
+    }
+    else
+    {
+        init_wifi();
+    }
+
     ESP_LOGI(TAG, "%d,start_user_wifi", __LINE__);
     uint8_t read_len;
     if ((xEventGroupGetBits(Net_sta_group) & WIFI_S_BIT) == WIFI_S_BIT)
@@ -237,6 +261,16 @@ void start_user_wifi(void)
 
 void start_softap(void)
 {
+    //是否开启初始化
+    if ((xEventGroupGetBits(Net_sta_group) & WIFI_S_I_BIT) == WIFI_S_I_BIT)
+    {
+        xEventGroupWaitBits(Net_sta_group, WIFI_I_BIT, false, false, -1);
+    }
+    else
+    {
+        init_wifi();
+    }
+
     if ((xEventGroupGetBits(Net_sta_group) & WIFI_S_BIT) == WIFI_S_BIT)
     {
         esp_err_t err = esp_wifi_stop();
@@ -256,7 +290,7 @@ void start_softap(void)
             // .ssid_len = 5,
             // .channel = EXAMPLE_ESP_WIFI_CHANNEL,
             // .password = "12345678",
-            .max_connection = 5,
+            .max_connection = SOFT_AP_MAX_CONNECT,
             .authmode = WIFI_AUTH_OPEN},
     };
 
@@ -645,18 +679,6 @@ short osi_WiFi_Connect_Test(void)
     return test_status;
 }
 
-extern bool ap_mode_status;
-extern bool AP_MODE_END_FLAG;
-extern TaskHandle_t xBinary13; //Task End Check
-extern TaskHandle_t GR_LED_TaskHandle;
-extern TaskHandle_t GR_LED_FAST_TaskHandle;
-extern char UartGet[UART_REV_BUF_LEN];
-extern volatile unsigned long POST_NUM;
-extern volatile unsigned long DELETE_ADDR, POST_ADDR, WRITE_ADDR;
-extern volatile uint16_t sys_run_time;
-
-extern void UpdateTimeTask(void *pvParameters);
-extern void ApikeyGetTask(void *pvParameters);
 /*******************************************************************************
 //start wlan AP mode
 *******************************************************************************/

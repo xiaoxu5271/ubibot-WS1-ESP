@@ -169,6 +169,8 @@ void UartParseTask(void *pvParameters)
   uart_event_t event;
   // uint8_t UartGet[BUF_SIZE] = {0};
   uint16_t all_read_len = 0;
+  //UART初始化
+  Set_Uart_Int_Source(); //Set Peripheral Interrupt Source
   while (1)
   {
     ESP_LOGI(TAG, "%d", __LINE__);

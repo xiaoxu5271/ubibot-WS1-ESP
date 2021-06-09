@@ -107,8 +107,8 @@ void osi_Sleep(uint16_t ms)
 *******************************************************************************/
 void PinMuxConfig(void)
 {
-  // rtc_gpio_deinit(BUTTON_PIN);
-  // rtc_gpio_deinit(ACCE_SRC_WKUP);
+  rtc_gpio_deinit(BUTTON_PIN);
+  rtc_gpio_deinit(ACCE_SRC_WKUP);
 
   gpio_config_t io_conf;
 
