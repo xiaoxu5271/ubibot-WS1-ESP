@@ -576,8 +576,6 @@ void DataPostTask(void *pvParameters)
     POST_TASK_END_FLAG = 1;
 
     // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
-    if (xBinary13 != NULL)
-      vTaskNotifyGiveFromISR(xBinary13, NULL);
 
     // osi_SyncObjSignalFromISR(&xBinary17); //Start LED Blink
     if (xBinary17 != NULL)

@@ -83,7 +83,7 @@
 
 #define UPDATE_TIME_SIZE 30 //1min
 #define SYS_RUN_TIMEOUT 600 //60s
-#define USB_TIME_OUT 50     //15min 750
+#define USB_TIME_OUT 100    //15min 750
 
 #define DEFAULT_IP_ADDR1 101
 #define DEFAULT_IP_ADDR2 201
@@ -128,6 +128,8 @@ EventGroupHandle_t Task_Group;
 #define SENTASK_12 (1 << 13)         //
 #define SAVE_TASK_BIT (1 << 14)      //
 #define DELE_TASK_BIT (1 << 15)      //
+#define FREST_TASK_BIT (1 << 16)     //
+#define USB_SET_BIT (1 << 17)        //
 
 #define ALL_BIT (POST_TASK_BIT |       \
                  UPDATETIME_TASK_BIT | \
@@ -144,7 +146,9 @@ EventGroupHandle_t Task_Group;
                  SENTASK_7 |           \
                  SENTASK_12 |          \
                  SAVE_TASK_BIT |       \
-                 DELE_TASK_BIT)
+                 DELE_TASK_BIT |       \
+                 FREST_TASK_BIT |      \
+                 USB_SET_BIT)
 
 typedef struct
 {

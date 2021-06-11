@@ -825,15 +825,15 @@ static char Parse_commands(char *ptr)
         osi_UartPrint_Mul("\"backup_ip\":", pSub->valuestring);
 #endif
 
-        //        char *InpString;
-        //        InpString = strtok(pSub->valuestring, ".");
-        //        HOST_IP[0]=(uint8_t)strtoul(InpString, 0, 10);
-        //        InpString = strtok(NULL, ".");
-        //        HOST_IP[1]=(uint8_t)strtoul(InpString, 0, 10);
-        //        InpString = strtok(NULL, ".");
-        //        HOST_IP[2]=(uint8_t)strtoul(InpString, 0, 10);
-        //        InpString = strtok(NULL, ".");
-        //        HOST_IP[3]=(uint8_t)strtoul(InpString, 0, 10);
+        char *InpString;
+        InpString = strtok(pSub->valuestring, ".");
+        HOST_IP[0] = (uint8_t)strtoul(InpString, 0, 10);
+        InpString = strtok(NULL, ".");
+        HOST_IP[1] = (uint8_t)strtoul(InpString, 0, 10);
+        InpString = strtok(NULL, ".");
+        HOST_IP[2] = (uint8_t)strtoul(InpString, 0, 10);
+        InpString = strtok(NULL, ".");
+        HOST_IP[3] = (uint8_t)strtoul(InpString, 0, 10);
 
         Parse_IP_MASK_GW_DNS(pSub->valuestring, HOST_IP);
         osi_at24c08_WriteData(HOST_IP_ADDR, HOST_IP, sizeof(HOST_IP), 1); //Save Host IP
@@ -2416,71 +2416,6 @@ void Web_Wifi_Set(char *read_buf, uint8_t data_len, char *WiFi_ssid, short WiFi_
   cJSON_free(out_buf);
 
   xSemaphoreGive(xMutex3); //cJSON Semaphore Give
-}
-
-/*******************************************************************************
-// parse http server message
-*******************************************************************************/
-short Parse_HttpMsg(char *ptr)
-{
-  if (NULL == ptr)
-  {
-    return FAILURE;
-  }
-
-  cJSON *pJson = cJSON_Parse(ptr);
-  if (NULL == pJson)
-  {
-    cJSON_Delete(pJson); //delete pJson
-
-    return FAILURE;
-  }
-
-  cJSON *pSub = cJSON_GetObjectItem(pJson, "ssid"); //"ssid"
-  if (NULL != pSub)
-  {
-#ifdef DEBUG_RESPONSE
-    osi_UartPrint("\"ssid\":");
-    osi_UartPrint(pSub->valuestring);
-    osi_UartPrint("\r\n");
-#endif
-
-    if (sizeof(SSID_NAME) >= strlen(pSub->valuestring))
-    {
-      osi_at24c08_WriteData(SSID_FLAG_ADDR, (uint8_t *)"SSID", strlen("SSID"), 1); //save ssid flag to at24c08
-
-      osi_at24c08_write_byte(SSID_LEN_ADDR, strlen(pSub->valuestring)); //save SSSID len
-
-      osi_at24c08_WriteData(SSID_ADDR, (uint8_t *)pSub->valuestring, strlen(pSub->valuestring), 0); //save ssid
-    }
-  }
-
-  //   pSub = cJSON_GetObjectItem(pJson, "type"); //"type"
-  //   if (NULL != pSub)
-  //   {
-  // #ifdef DEBUG_RESPONSE
-  //     osi_UartPrint("\"type\":");
-  //     osi_UartPrint(pSub->valuestring);
-  //     osi_UartPrint("\r\n");
-  // #endif
-
-  //     if (pSub->valueint == SL_SEC_TYPE_OPEN)
-  //     {
-  //       osi_at24c08_WriteData(SECTYPE_ADDR, "OPEN", strlen("OPEN"), 1); //save type
-  //     }
-  //     else if (pSub->valueint == SL_SEC_TYPE_WEP)
-  //     {
-  //       osi_at24c08_WriteData(SECTYPE_ADDR, "WEP", strlen("WEP"), 1); //save type
-  //     }
-  //     else
-  //     {
-  //       osi_at24c08_WriteData(SECTYPE_ADDR, "WPA", strlen("WPA"), 1); //save type
-  //     }
-  //   }
-
-  cJSON_Delete(pJson);
-
-  return SUCCESS;
 }
 
 /*******************************************************************************

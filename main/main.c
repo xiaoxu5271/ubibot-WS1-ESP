@@ -562,8 +562,6 @@ static void Sensor_Power_OFF(void)
 *******************************************************************************/
 void Timer_Check_Task(void *pvParameters)
 {
-	uint8_t msg_slp_val = MSG_SLP_VAL;
-
 	for (;;)
 	{
 		xEventGroupSetBits(Task_Group, TIMER_CHECK_BIT);
@@ -760,6 +758,7 @@ void Usb_Mode_Task(void *pvParameters)
 			// osi_SyncObjSignalFromISR(&xBinary15);
 			if (xBinary15 != NULL)
 			{
+				//触发USB开机计时
 				ESP_LOGI(TAG, "%d", __LINE__);
 				vTaskNotifyGiveFromISR(xBinary15, NULL);
 			}
@@ -813,7 +812,15 @@ void Usb_Mode_Task(void *pvParameters)
 			// ESP_LOGI(TAG, "%d", __LINE__);
 			usb_t += 1;
 
-			Green_Led_Flashed(1, 4); //Green Led Flashed 0.6s
+			//除掉USB任务、TIMERCHECKR任务 无其他任务运行，则USB模式指示灯亮 1S
+			if ((xEventGroupGetBits(Task_Group) | USB_MODE_BIT | TIMER_CHECK_BIT) == ALL_BIT)
+			{
+				Green_Led_Flashed(1, 5); //Green Led Flashed 0.6s
+			}
+			else
+			{
+				vTaskDelay(1000 / portTICK_RATE_MS);
+			}
 
 			// if (!gpio_get_level(USB_PIN)) //read usb pin status
 			if (!gpio_get_level(USB_PIN))
@@ -1184,12 +1191,14 @@ void Usb_Set_Mode(void *pvParameters)
 
 	// osi_SyncObjWait(&xBinary16, -1); //Wait Task Operation Message
 	ulTaskNotifyTake(pdTRUE, -1);
+	xEventGroupClearBits(Task_Group, USB_SET_BIT);
 
 	my_xTaskCreate(ApikeyGetTask, "ApikeyGetTask", 1024, NULL, 7, NULL); //Create ApiKeyGetTask
 
 	// MAP_UtilsDelay(80000); //delay about 6ms
 	vTaskDelay(10 / portTICK_RATE_MS);
 
+	xEventGroupSetBits(Task_Group, USB_SET_BIT);
 	vTaskDelete(NULL);
 }
 
@@ -1198,6 +1207,7 @@ void Usb_Set_Mode(void *pvParameters)
 *******************************************************************************/
 void F_ResetTask(void *pvParameters)
 {
+	xEventGroupClearBits(Task_Group, FREST_TASK_BIT);
 	ESP_LOGI(TAG, "%d,F_ResetTask", __LINE__);
 	// char mac_addr[6] = {0};
 	// uint8_t buf_len = sizeof(mac_addr);
@@ -1282,6 +1292,8 @@ void F_ResetTask(void *pvParameters)
 	f_reset_status = 0;
 
 	ESP_LOGI(TAG, "%d,F_ResetTask", __LINE__);
+
+	xEventGroupSetBits(Task_Group, FREST_TASK_BIT);
 	vTaskDelete(NULL); //Delete Factory Reset Task
 }
 
@@ -1321,7 +1333,7 @@ void ButtonPush_Int_Task(void *pvParameters)
 
 					//vTaskSuspendAll(); //disable the tasks
 
-					bell_makeSound(2000);
+					bell_makeSound(1000);
 
 					//xTaskResumeAll(); //enable all tasks
 				}
@@ -1453,10 +1465,11 @@ void Enter_Sleep(bool OFF_FLAG)
 
 		osi_Read_UnixTime(); //update system unix time
 		sleep_time = fn_t_sleep_time_min();
-		esp_sleep_enable_timer_wakeup(sleep_time * 1000000 - (100 * 1000));
+		//提前500ms 唤醒
+		esp_sleep_enable_timer_wakeup(sleep_time * 1000000 - (500 * 1000));
 
 		ESP_LOGI(TAG, "sleep_time=%ld", sleep_time);
-		esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask | ext_wakeup_pin_2_mask, ESP_EXT1_WAKEUP_ALL_LOW);
+		esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask, ESP_EXT1_WAKEUP_ALL_LOW);
 		ESP_LOGI(TAG, " SET BUTTON & ACCE wakeup");
 	}
 
@@ -1630,47 +1643,47 @@ static short Read_System_Status(uint8_t *read_flag, uint8_t buf_len)
 /*******************************************************************************
 //Watch Dog Rest Task
 *******************************************************************************/
-void WatchDog_Reset_Task(void *pvParameters)
-{
-	uint8_t msg_val;
+// void WatchDog_Reset_Task(void *pvParameters)
+// {
+// 	uint8_t msg_val;
 
-	for (;;)
-	{
-		// osi_MsgQRead(&xQueue3, &msg_val, -1); //Wait WatchDog and SleepTimer Task Start Message
-		xQueueReceive(xQueue3, &msg_val, portMAX_DELAY);
+// 	for (;;)
+// 	{
+// 		// osi_MsgQRead(&xQueue3, &msg_val, -1); //Wait WatchDog and SleepTimer Task Start Message
+// 		xQueueReceive(xQueue3, &msg_val, portMAX_DELAY);
 
-		if (msg_val == MSG_SLP_VAL)
-		{
-			sleep_time = fn_t_sleep_time_min();
+// 		if (msg_val == MSG_SLP_VAL)
+// 		{
+// 			sleep_time = fn_t_sleep_time_min();
 
-			slp_t_ms = 0;
+// 			slp_t_ms = 0;
 
-			ESP_LOGI(TAG, "%d,sleep_time=%ld", __LINE__, sleep_time);
+// 			ESP_LOGI(TAG, "%d,sleep_time=%ld", __LINE__, sleep_time);
 
-			//设置休眠唤醒时间，执行即计时，非休眠则进入回调
-			// rtc_result = SetTimerAsWkUp(sleep_time, 1); //set Timer as a wake up source from low power modes
-			// if (rtc_result < 0)
-			// {
-			// 	Reboot_MCU(); //Reboot the MCU
-			// }
-		}
-		// else if (msg_val == MSG_WD_VAL)
-		// {
-		// 	portENTER_CRITICAL(); //enter critical
+// 			//设置休眠唤醒时间，执行即计时，非休眠则进入回调
+// 			// rtc_result = SetTimerAsWkUp(sleep_time, 1); //set Timer as a wake up source from low power modes
+// 			// if (rtc_result < 0)
+// 			// {
+// 			// 	Reboot_MCU(); //Reboot the MCU
+// 			// }
+// 		}
+// 		// else if (msg_val == MSG_WD_VAL)
+// 		// {
+// 		// 	portENTER_CRITICAL(); //enter critical
 
-		// 	WatchdogAck(); //Acknowledge the watchdog
+// 		// 	WatchdogAck(); //Acknowledge the watchdog
 
-		// 	taskEXIT_CRITICAL(0); //exit crtitcal
-		// }
+// 		// 	taskEXIT_CRITICAL(0); //exit crtitcal
+// 		// }
 
-		if (sys_run_time > SYS_RUN_TIMEOUT)
-		{
-			// Reboot_MCU(); //Reboot the MCU
-			ESP_LOGE(TAG, "%d,sys_run_time =%d TIME OUT", __LINE__, sys_run_time);
-			esp_restart();
-		}
-	}
-}
+// 		if (sys_run_time > SYS_RUN_TIMEOUT)
+// 		{
+// 			// Reboot_MCU(); //Reboot the MCU
+// 			ESP_LOGE(TAG, "%d,sys_run_time =%d TIME OUT", __LINE__, sys_run_time);
+// 			esp_restart();
+// 		}
+// 	}
+// }
 
 esp_timer_handle_t http_timer_suspend_p = NULL;
 void timer_app_cb(void *arg);
@@ -1687,6 +1700,11 @@ esp_timer_create_args_t timer_app_arg = {
 void timer_app_cb(void *arg)
 {
 	sys_run_time += 1;
+	if (sys_run_time > SYS_RUN_TIMEOUT)
+	{
+		ESP_LOGE(TAG, "SYS_RUN_TIMEOUT");
+		esp_restart();
+	}
 
 	//每100ms 定期检查是否需要执行采集任务，更新 UnixTime
 	if (xBinary9 != NULL)
@@ -1931,11 +1949,12 @@ end:
 	// osi_start(); // Start the task scheduler
 	// xTaskCreate(My_Idle_Task, "My_Idle_Task", 2048, NULL, 1, NULL);
 	esp_timer_create(&timer_app_arg, &timer_app_handle);
-	esp_timer_start_periodic(timer_app_handle, 1000 * 1000); //创建定时器，单位us，定时1000ms
+	esp_timer_start_periodic(timer_app_handle, 100 * 1000); //创建定时器，单位us，定时1000ms
 
 	my_xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 512, NULL, 1, &xBinary13); //Create Check Tasks End
+	vTaskDelete(NULL);
 	// for (;;)
-	; //never go here
+	//never go here
 }
 
 /*******************************************************************************

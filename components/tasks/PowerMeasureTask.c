@@ -50,14 +50,6 @@ static const adc_bits_width_t width = ADC_WIDTH_BIT_12;
 float power_adcValue(void)
 {
   float adc_reading = 0;
-  float value_1 = 0;
-  // initialize ADC
-  adc1_config_width(width);
-  adc1_config_channel_atten(channel, atten);
-
-  adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
-  esp_adc_cal_value_t val_type = esp_adc_cal_characterize(unit, atten, width, DEFAULT_VREF, adc_chars);
-  // print_char_val_type(val_type);
 
   for (int i = 0; i < NO_OF_SAMPLES; i++)
   {
@@ -87,6 +79,12 @@ void PowerMeasureTask(void *pvParameters)
     xEventGroupSetBits(Task_Group, SENTASK_7);
     ulTaskNotifyTake(pdTRUE, -1);
     xEventGroupClearBits(Task_Group, SENTASK_7);
+
+    //initialize ADC
+    adc1_config_width(width);
+    adc1_config_channel_atten(channel, atten);
+    adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
+    esp_adc_cal_characterize(unit, atten, width, DEFAULT_VREF, adc_chars);
 
     for (err_val = 0; err_val < 3; err_val++)
     {

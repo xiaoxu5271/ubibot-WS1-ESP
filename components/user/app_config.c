@@ -6,7 +6,7 @@
 #include "freertos/event_groups.h"
 #include "esp_event.h"
 #include "esp_wifi.h"
-#include "tcpip_adapter.h"
+#include "esp_netif.h"
 // #include "esp_wpa2.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -61,6 +61,9 @@ extern SemaphoreHandle_t xMutex2; //Used for SimpleLink Lock
 extern SemaphoreHandle_t xMutex4; //Used for UART Lock
 
 char wifi_buf[180];
+
+esp_netif_t *STA_netif_t;
+esp_netif_t *AP_netif_t;
 
 void WlanAPMode(void *pvParameters);
 
@@ -148,8 +151,8 @@ void init_wifi(void) //
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
-    esp_netif_create_default_wifi_ap();
+    STA_netif_t = esp_netif_create_default_wifi_sta();
+    AP_netif_t = esp_netif_create_default_wifi_ap();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -247,6 +250,41 @@ void start_user_wifi(void)
     s_staconf.sta.sort_method = 0;
 
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &s_staconf));
+
+    uint8_t dhcp_mode; //0:static ;1:dhcp
+    dhcp_mode = osi_at24c08_read_byte(DHCP_MODE_ADDR);
+    if (dhcp_mode == 0)
+    {
+        uint8_t ip[4] = {0};  //< Source IP Address
+        uint8_t sn[4] = {0};  //< Subnet Mask
+        uint8_t gw[4] = {0};  //< Gateway IP Address
+        uint8_t dns[4] = {0}; //< DNS server IP Address
+
+        osi_at24c08_ReadData(STATIC_IP_ADDR, ip, sizeof(ip), 1);
+        osi_at24c08_ReadData(STATIC_SN_ADDR, sn, sizeof(sn), 1);
+        osi_at24c08_ReadData(STATIC_GW_ADDR, gw, sizeof(gw), 1);
+        osi_at24c08_ReadData(STATIC_DNS_ADDR, dns, sizeof(dns), 1);
+
+        const esp_netif_ip_info_t ip_info = {
+            .ip = {.addr = ESP_IP4TOADDR(ip[0], ip[1], ip[2], ip[3])},
+            .gw = {.addr = ESP_IP4TOADDR(gw[0], gw[1], gw[2], gw[3])},
+            .netmask = {.addr = ESP_IP4TOADDR(sn[0], sn[1], sn[2], sn[3])},
+        };
+
+        esp_netif_dns_info_t main_dns_info = {
+            .ip.u_addr.ip4 = {.addr = ESP_IP4TOADDR(dns[0], dns[1], dns[2], dns[3])},
+        };
+
+        esp_netif_dns_info_t backup_dns_info = {
+            .ip.u_addr.ip4 = {.addr = ESP_IP4TOADDR(gw[0], gw[1], gw[2], gw[3])},
+        };
+
+        esp_netif_dhcpc_stop(STA_netif_t);
+        esp_netif_set_ip_info(STA_netif_t, &ip_info);
+        esp_netif_set_dns_info(STA_netif_t, ESP_NETIF_DNS_MAIN, &main_dns_info);
+        esp_netif_set_dns_info(STA_netif_t, ESP_NETIF_DNS_BACKUP, &backup_dns_info);
+    }
+
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_LOGI(TAG, "turn on WIFI! \n");
 }
@@ -331,115 +369,6 @@ int Tcp_Send(int sock, const char *Send_Buff, uint16_t Send_Buff_len, uint8_t fl
     }
 
     return written;
-}
-
-//TCP 收发数据
-static void do_retransmit(const int sock)
-{
-    int len;
-    esp_err_t ret;
-    char rx_buffer[1024];
-
-    do
-    {
-        len = recv(sock, rx_buffer, sizeof(rx_buffer) - 1, 0);
-        if (len < 0)
-        {
-            ESP_LOGE(TAG, "Error occurred during receiving: errno %d", errno);
-        }
-        else if (len == 0)
-        {
-            ESP_LOGW(TAG, "Connection closed");
-        }
-        else
-        {
-            rx_buffer[len] = 0; // Null-terminate whatever is received and treat it like a string
-            ESP_LOGI(TAG, "Received %d,strlen:%d, bytes: %s,sock:%d", len, strlen(rx_buffer), rx_buffer, sock);
-            // send(sock, rx_buffer, len, 0);
-            ret = ParseTcpUartCmd(rx_buffer);
-            // ESP_LOGI(TAG, "TCP ret:%d", ret);
-        }
-    } while (len > 0);
-}
-
-static void tcp_server_task(void *pvParameters)
-{
-    char addr_str[128];
-
-    int ip_protocol = 0;
-    struct sockaddr_in6 dest_addr;
-
-    struct sockaddr_in *dest_addr_ip4 = (struct sockaddr_in *)&dest_addr;
-    dest_addr_ip4->sin_addr.s_addr = htonl(INADDR_ANY);
-    dest_addr_ip4->sin_family = AF_INET;
-    dest_addr_ip4->sin_port = htons(TCP_PORT);
-    ip_protocol = IPPROTO_IP;
-
-    int listen_sock = socket(AF_INET, SOCK_STREAM, ip_protocol);
-    if (listen_sock < 0)
-    {
-        ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
-        vTaskDelete(NULL);
-        return;
-    }
-
-    ESP_LOGI(TAG, "Socket created");
-
-    int err = bind(listen_sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-    if (err != 0)
-    {
-        ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-        ESP_LOGE(TAG, "IPPROTO: %d", AF_INET);
-        goto CLEAN_UP;
-    }
-    ESP_LOGI(TAG, "Socket bound, port %d", TCP_PORT);
-
-    err = listen(listen_sock, 1);
-    if (err != 0)
-    {
-        ESP_LOGE(TAG, "Error occurred during listen: errno %d", errno);
-        goto CLEAN_UP;
-    }
-
-    while (1)
-    {
-
-        ESP_LOGI(TAG, "Socket listening");
-
-        struct sockaddr_in6 source_addr; // Large enough for both IPv4 or IPv6
-        uint addr_len = sizeof(source_addr);
-        ESP_LOGI(TAG, "%d", __LINE__);
-        int sock = accept(listen_sock, (struct sockaddr *)&source_addr, &addr_len);
-        ESP_LOGI(TAG, "%d", __LINE__);
-        if (sock < 0)
-        {
-            ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
-            break;
-        }
-
-        // Convert ip address to string
-        if (source_addr.sin6_family == PF_INET)
-        {
-            inet_ntoa_r(((struct sockaddr_in *)&source_addr)->sin_addr.s_addr, addr_str, sizeof(addr_str) - 1);
-            ESP_LOGI(TAG, "%d", __LINE__);
-        }
-        else if (source_addr.sin6_family == PF_INET6)
-        {
-            inet6_ntoa_r(source_addr.sin6_addr, addr_str, sizeof(addr_str) - 1);
-            ESP_LOGI(TAG, "%d", __LINE__);
-        }
-        ESP_LOGI(TAG, "Socket accepted ip address: %s", addr_str);
-
-        do_retransmit(sock);
-
-        shutdown(sock, 0);
-        close(sock);
-    }
-
-CLEAN_UP:
-    esp_restart();
-    close(listen_sock);
-    vTaskDelete(NULL);
 }
 
 /******************************************************************************/
@@ -613,8 +542,8 @@ int WlanConnect(void)
     //osi_at24c08_ReadData(SECTYPE_ADDR,(uint8_t*)SEC_TYPE,sizeof(SEC_TYPE),1);  //Read Wifi Sectype
 
     start_user_wifi();
-    //等网络连接
-    if ((xEventGroupWaitBits(Net_sta_group, CONNECTED_BIT, false, true, 30000 / portTICK_RATE_MS) & CONNECTED_BIT) == CONNECTED_BIT)
+    //等网络连接 等待 20s
+    if ((xEventGroupWaitBits(Net_sta_group, CONNECTED_BIT, false, true, 20000 / portTICK_RATE_MS) & CONNECTED_BIT) == CONNECTED_BIT)
     {
         return SUCCESS;
     }
@@ -686,6 +615,10 @@ void WlanAPMode(void *pvParameters)
 {
     ESP_LOGI(TAG, "%d,WlanAPMode", __LINE__);
     xEventGroupClearBits(Task_Group, AP_MODE_END_BIT);
+
+    ap_mode_status = 1;
+    AP_MODE_END_FLAG = 1;
+
     char Readflag[16];
     int lRetVal = -1;
     int sock;
@@ -698,9 +631,6 @@ void WlanAPMode(void *pvParameters)
     dest_addr_ip4->sin_port = htons(TCP_PORT);
     ip_protocol = IPPROTO_IP;
     int listen_sock;
-
-    ap_mode_status = 1;
-    AP_MODE_END_FLAG = 1;
 
     // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
     if (xBinary13 != NULL)

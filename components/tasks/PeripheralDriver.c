@@ -158,12 +158,12 @@ void Green_Led_Flashed(uint8_t n_time, uint8_t on_time)
     SET_GREEN_LED_ON();
 
     // MAP_UtilsDelay(on_time * 2000000); //n*150ms
-    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
+    vTaskDelay(on_time * 100 / portTICK_RATE_MS);
 
     SET_GREEN_LED_OFF();
 
     // MAP_UtilsDelay(on_time * 2000000); //n*150ms
-    vTaskDelay(on_time * 150 / portTICK_RATE_MS);
+    vTaskDelay(on_time * 100 / portTICK_RATE_MS);
   }
 }
 

@@ -64,7 +64,9 @@
                 "accesensortask.h": "c",
                 "temphumitask.h": "c",
                 "ledc.h": "c",
-                "event_groups.h": "c"
+                "event_groups.h": "c",
+                "tcpip_adapter.h": "c",
+                "esp_netif.h": "c"
         },
         "idf.flashType": "UART",
 }
