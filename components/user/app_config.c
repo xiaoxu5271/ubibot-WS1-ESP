@@ -668,15 +668,6 @@ void WlanAPMode(void *pvParameters)
         goto CLEAN_UP;
     }
 
-    // for (;;)
-    // {
-    //等待AP下游设备接入，获取到设备IP
-    // while (!IS_IP_LEASED(g_ulStatus)) //wating for the client to connect
-    // {
-    //     osi_Sleep(5); //delay 5ms
-
-    //     sys_run_time = 0; //clear system time out
-    // }
 
     for (;;)
     {
