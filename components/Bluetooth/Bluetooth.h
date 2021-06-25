@@ -31,10 +31,7 @@ char ble_dev_pwd[16];
 bool BLE_CON_FLAG;
 
 void ble_app_init(void);
-void ble_app_start(void);
-void ble_app_stop(void);
-void gap_init(void);
-void gap_start(void);
+
 void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 void notify_respon(char *buff);

@@ -81,9 +81,9 @@
 #define MSG_SLP_VAL 0x01
 #define MSG_WD_VAL 0x02
 
-#define UPDATE_TIME_SIZE 30 //1min
-#define SYS_RUN_TIMEOUT 600 //60s
-#define USB_TIME_OUT 100    //15min 750
+#define UPDATE_TIME_SIZE 30  //1min
+#define SYS_RUN_TIMEOUT 1200 //60s
+#define USB_TIME_OUT 100     //15min 750
 
 #define DEFAULT_IP_ADDR1 101
 #define DEFAULT_IP_ADDR2 201

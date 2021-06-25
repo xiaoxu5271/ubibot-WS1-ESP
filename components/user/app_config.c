@@ -26,6 +26,7 @@
 #include "JsonParse.h"
 #include "PeripheralDriver.h"
 #include "UartTask.h"
+#include "Bluetooth.h"
 
 #include "app_config.h"
 #define TAG "NET_CFG"
@@ -160,7 +161,7 @@ void init_wifi(void) //
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
     // ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM)); //最大省电
+    // ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM)); //最大省电
     // ESP_ERROR_CHECK(esp_wifi_get_config(ESP_IF_WIFI_STA, &s_staconf));
     // wifi_config_t s_staconf;
     // memset(&s_staconf.sta, 0, sizeof(s_staconf));
@@ -339,15 +340,26 @@ void start_softap(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    tcpip_adapter_ip_info_t ip_info = {
-        .ip.addr = ipaddr_addr("192.168.1.1"),
-        .netmask.addr = ipaddr_addr("255.255.255.0"),
-        .gw.addr = ipaddr_addr("192.168.1.1"),
+    // tcpip_adapter_ip_info_t ip_info = {
+    //     .ip.addr = ipaddr_addr("192.168.1.1"),
+    //     .netmask.addr = ipaddr_addr("255.255.255.0"),
+    //     .gw.addr = ipaddr_addr("192.168.1.1"),
+    // };
+
+    // ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
+    // ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info));
+    // ESP_ERROR_CHECK(tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
+
+    const esp_netif_ip_info_t ip_info = {
+        .ip = {.addr = ESP_IP4TOADDR(192, 168, 1, 1)},
+        .gw = {.addr = ESP_IP4TOADDR(192, 168, 1, 1)},
+        .netmask = {.addr = ESP_IP4TOADDR(255, 255, 255, 0)},
     };
 
-    ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
-    ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info));
-    ESP_ERROR_CHECK(tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
+    //注意，ap使用DHCPS ,即 DHCP服务器
+    ESP_ERROR_CHECK(esp_netif_dhcps_stop(AP_netif_t));
+    esp_netif_set_ip_info(AP_netif_t, &ip_info);
+    esp_netif_dhcps_start(AP_netif_t);
 
     ESP_LOGI(TAG, "wifi_init_softap finished. ");
 }
@@ -574,18 +586,8 @@ short WiFi_Connect_Test(void)
 {
     short test_val = -1;
 
-    //  Scan_Wifi_List(NULL,NULL,0);
-    //  ConfigureSimpleLinkToDefaultState();  //configure the device to default state
-
     test_val = WlanConnect(); //wlan connect to the accesspoint
-    // if (test_val >= 0)
-    // {
-    //     osi_at24c08_WriteData(SECTYPE_ADDR, (uint8_t *)SEC_TYPE, strlen(SEC_TYPE), 1); //save type in at24c08
-    // }
-
-    Wlan_Disconnect_AP(); //wlan disconnect form the ap
-
-    // MAP_UtilsDelay(80000); //delay about 6ms
+    Wlan_Disconnect_AP();     //wlan disconnect form the ap
 
     return test_val;
 }
@@ -615,7 +617,8 @@ void WlanAPMode(void *pvParameters)
 {
     ESP_LOGI(TAG, "%d,WlanAPMode", __LINE__);
     xEventGroupClearBits(Task_Group, AP_MODE_END_BIT);
-
+    //初始化并打开蓝牙
+    ble_app_init();
     ap_mode_status = 1;
     AP_MODE_END_FLAG = 1;
 
@@ -667,7 +670,6 @@ void WlanAPMode(void *pvParameters)
         ESP_LOGE(TAG, "Error occurred during listen: errno %d", errno);
         goto CLEAN_UP;
     }
-
 
     for (;;)
     {

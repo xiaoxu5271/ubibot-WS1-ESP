@@ -346,7 +346,7 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
 
     MemoryAddr = Read_PostDataBuffer(MemoryAddr, Post_Data_Buffer, post_data_sum, EndFlag); //read post data
 
-    ESP_LOGI(TAG, "%s", Post_Data_Buffer);
+    // ESP_LOGI(TAG, "%s", Post_Data_Buffer);
 
     lRetVal = esp_http_client_write(httpClient, (const char *)Post_Data_Buffer, (strlen(Post_Data_Buffer))); //Send POST data/body
     //  xSemaphoreGive(xMutex5); //Post_Data_Buffer Semaphore Give

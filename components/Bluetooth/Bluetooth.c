@@ -38,6 +38,10 @@
 #include "app_config.h"
 #include "at24c08.h"
 #include "PeripheralDriver.h"
+#include "MsgType.h"
+#include "JsonParse.h"
+#include "UartTask.h"
+
 #include "Bluetooth.h"
 
 #define GATTS_TAG "GATTS"
@@ -85,6 +89,8 @@ static uint8_t raw_scan_rsp_data[] = {
     0x0f, 0x09, 0x45, 0x53, 0x50, 0x5f, 0x47, 0x41, 0x54, 0x54, 0x53, 0x5f, 0x44,
     0x45, 0x4d, 0x4f};
 #else
+
+QueueHandle_t Ble_Queue = NULL;
 
 static uint8_t adv_service_uuid128[32] = {
     /* LSB <--------------------------------------------------------------------------------> MSB */
@@ -215,14 +221,17 @@ static prepare_type_env_t a_prepare_write_env;
 
 char buf[1024];              // do not free from heap!
 char BleRespond[128] = "\0"; // 蓝牙回复
-bool blere_flag = false;
 // bool ble_resp_flag = false; // 蓝牙回复超时标志
 int32_t Ble_ret = 0;
+bool BLE_respon_Task = false;
 esp_timer_handle_t ble_response_timer_handle;
-bool notify_flag = false; //开启 notify_flag
 
 esp_gatt_if_t not_gatts_if;
 esp_ble_gatts_cb_param_t *not_param;
+
+extern TaskHandle_t GR_LED_TaskHandle;
+extern TaskHandle_t GR_LED_FAST_TaskHandle;
+extern char UartGet[UART_REV_BUF_LEN];
 
 void ble_respon_process(void *arg);
 void example_write_event_env(esp_gatt_if_t gatts_if, prepare_type_env_t *prepare_write_env, esp_ble_gatts_cb_param_t *param);
@@ -454,43 +463,44 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         break;
     case ESP_GATTS_READ_EVT:
     {
-        ESP_LOGI(GATTS_TAG, "GATT_READ_EVT, conn_id %d, trans_id %d, handle %d\n", param->read.conn_id, param->read.trans_id, param->read.handle);
+        //阻塞式返回数据
+        ESP_LOGI(GATTS_TAG, "%d,GATT_READ_EVT, conn_id %d, trans_id %d, handle %d\n", __LINE__, param->read.conn_id, param->read.trans_id, param->read.handle);
         esp_gatt_rsp_t rsp;
         memset(&rsp, 0, sizeof(esp_gatt_rsp_t));
         rsp.attr_value.handle = param->read.handle;
 
-        bzero(BleRespond, sizeof(BleRespond));
-        if (Ble_ret == 0)
-        {
-            // bzero(BleRespond, sizeof(BleRespond));
-            strcpy(BleRespond, "{\"result\":\"error\",\"code\":100}");
-        }
-        else
-        {
-            if ((xEventGroupGetBits(Net_sta_group) & ACTIVED_BIT) == ACTIVED_BIT) //网络连接成功
-            {
-                // bzero(BleRespond, sizeof(BleRespond));
-                strcpy(BleRespond, "{\"result\":\"success\"}");
-            }
-            else
-            {
-                if ((xEventGroupGetBits(Net_sta_group) & BLE_RESP_BIT) == BLE_RESP_BIT)
-                {
-                    // ble_resp_flag = false;
-                    xEventGroupClearBits(Net_sta_group, BLE_RESP_BIT);
-                    snprintf(BleRespond, sizeof(BleRespond), "{\"result\":\"error\",\"code\":%d}", Net_ErrCode);
-                }
-            }
-        }
+        // bzero(BleRespond, sizeof(BleRespond));
+        // if (Ble_ret == 0)
+        // {
+        //     // bzero(BleRespond, sizeof(BleRespond));
+        //     strcpy(BleRespond, "{\"result\":\"error\",\"code\":100}");
+        // }
+        // else
+        // {
+        //     if ((xEventGroupGetBits(Net_sta_group) & ACTIVED_BIT) == ACTIVED_BIT) //网络连接成功
+        //     {
+        //         // bzero(BleRespond, sizeof(BleRespond));
+        //         strcpy(BleRespond, "{\"result\":\"success\"}");
+        //     }
+        //     else
+        //     {
+        //         if ((xEventGroupGetBits(Net_sta_group) & BLE_RESP_BIT) == BLE_RESP_BIT)
+        //         {
+        //             // ble_resp_flag = false;
+        //             xEventGroupClearBits(Net_sta_group, BLE_RESP_BIT);
+        //             snprintf(BleRespond, sizeof(BleRespond), "{\"result\":\"error\",\"code\":%d}", Net_ErrCode);
+        //         }
+        //     }
+        // }
 
-        //蓝牙回复
-        rsp.attr_value.len = strlen(BleRespond);
-        strncpy((char *)(rsp.attr_value.value), BleRespond, strlen(BleRespond));
-        ESP_LOGI(GATTS_TAG, "ble respond=%s\n", BleRespond);
+        // //蓝牙回复
+        // rsp.attr_value.len = strlen(BleRespond);
+        // strncpy((char *)(rsp.attr_value.value), BleRespond, strlen(BleRespond));
+        // ESP_LOGI(GATTS_TAG, "ble respond=%s\n", BleRespond);
 
-        esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id,
-                                    ESP_GATT_OK, &rsp);
-        blere_flag = true;
+        // esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id,
+        //                             ESP_GATT_OK, &rsp);
+        // blere_flag = true;
         break;
     }
     case ESP_GATTS_WRITE_EVT:
@@ -503,20 +513,14 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
             //开启notify
             if (gl_profile_tab[PROFILE_A_APP_ID].descr_handle == param->write.handle && param->write.len == 2)
             {
-                ESP_LOGI(GATTS_TAG, "notify \n");
-                if (Ble_ret == 0)
-                {
-                    bzero(BleRespond, sizeof(BleRespond));
-                    strcpy(BleRespond, "{\"result\":\"error\",\"code\":101}");
-                    esp_ble_gatts_send_indicate(gatts_if, param->write.conn_id, gl_profile_tab[PROFILE_A_APP_ID].char_handle,
-                                                strlen(BleRespond), (uint8_t *)BleRespond, false);
-                }
-                else
+                ESP_LOGI(GATTS_TAG, "%d,notify \n", __LINE__);
+
+                if (BLE_respon_Task == false)
                 {
                     not_gatts_if = gatts_if;
                     not_param = param;
-                    notify_flag = true;
-                    xTaskCreate(ble_respon_process, "BLE respon", 2048, NULL, 5, NULL);
+                    xTaskCreate(ble_respon_process, "BLE respon", 4096, NULL, 5, NULL);
+                    BLE_respon_Task = true;
                 }
             }
             else
@@ -526,86 +530,10 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
                 // Ble_ret = parse_objects_bluetooth(buf);
 
                 ESP_LOGI(GATTS_TAG, "parse_objects_bluetooth return = %d \n", Ble_ret);
-                lRetVal = ParseTcpUartCmd(buf);
-                if (lRetVal < 0)
-                {
-                    Tcp_Send(sock, FAILURED_CODE, strlen(FAILURED_CODE), 0);
-                }
-                else if (lRetVal == 0)
-                {
-                    Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-                }
-                else if (lRetVal == 1) //Command:SetupWifi
-                {
-                    Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-                    break;
-                }
-                else if (lRetVal == 2) //{command: ReadProduct}
-                {
-                    memset(buf, 0, sizeof(buf));
-                    Read_Product_Set(buf, sizeof(buf));
-                    Tcp_Send(sock, buf, strlen(buf), 0);
-                }
-                else if (lRetVal == 3) //Command:ReadWifi
-                {
-                    memset(buf, 0, sizeof(buf));
-                    Read_Wifi_Set(buf, sizeof(buf));
-                    Tcp_Send(sock, buf, strlen(buf), 0);
-                }
-                else if (lRetVal == 4) //Command:GetLastError
-                {
-                    memset(buf, 0, sizeof(buf));
-                    Read_System_ERROR_Code(buf, sizeof(buf));
-                    Tcp_Send(sock, buf, strlen(buf), 0);
-                }
-                else if (lRetVal == 5) //command:BreakOut
-                {
-                    break;
-                }
-                else if (lRetVal == 6) //Command:ReadMetaData
-                {
-                    memset(buf, 0, sizeof(buf));
-                    Cmd_Read_MetaData(buf, sizeof(buf));
-                    Tcp_Send(sock, buf, strlen(buf), 0);
-                }
-                else if (lRetVal == 9) //Command:ReadData
-                {
-                    char data_len_buf[25];
-                    unsigned long read_addr;
-                    unsigned long save_data_num;
+                int lRetVal = ParseTcpUartCmd(buf);
+                xQueueSend(Ble_Queue, (void *)&lRetVal, 0);
 
-                    osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
-
-                    if (POST_NUM)
-                    {
-                        save_data_num = POST_NUM;
-                        read_addr = POST_ADDR;
-
-                        snprintf(data_len_buf, sizeof(data_len_buf), "{\"save_data_sum\":%ld}", save_data_num);
-                        Tcp_Send(sock, data_len_buf, strlen(data_len_buf), 0);
-                        Tcp_Send(sock, "\r\n", strlen("\r\n"), 0);
-
-                        while (save_data_num--)
-                        {
-                            memset(buf, 0, sizeof(buf));
-                            osi_w25q_ReadData(read_addr, buf, 0xff, NULL);
-                            Tcp_Send(sock, buf, strlen(buf), 0);
-                            Tcp_Send(sock, "\r\n", strlen("\r\n"), 0);
-                            read_addr += 1 + strlen(buf); //end whit '!'
-                            sys_run_time = 0;             //clear system time out
-                        }
-                    }
-                }
-                else if (lRetVal == 10) //Command:ClearData
-                {
-                    Tcp_Send(sock, SUCCESSED_CODE, strlen(SUCCESSED_CODE), 0);
-                    vTaskDelete(GR_LED_TaskHandle);                                                                           //delete Green and Red Led Flash Task
-                    SET_GREEN_LED_OFF();                                                                                      //Set Green Led Off
-                    osi_Save_Data_Reset();                                                                                    //Nor Flash Memory Chip Reset
-                    my_xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
-                }
-
-                if (Ble_ret)
+                // if (Ble_ret)
                 {
                     // ble_resp_flag = false;
                     xEventGroupClearBits(Net_sta_group, BLE_RESP_BIT);
@@ -613,25 +541,6 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
                     esp_timer_start_once(ble_response_timer_handle, BLE_TIMEOUT);
                 }
             }
-
-            // if (ret == BLU_JSON_FORMAT_ERROR) //解析蓝牙格式错误
-            // {
-            //     bzero(BleRespond, sizeof(BleRespond));
-            //     strcpy(BleRespond, "{\"result\":\"error\",\"code\":100}");
-            // }
-
-            // else if (ret == 1) //解析蓝牙正确且按新参数配置
-            // {
-            // bzero(BleRespond, sizeof(BleRespond));
-            // // strcpy(BleRespond, "{\"result\":\"success\",\"code\":0}");
-            // strcpy(BleRespond, "{\"result\":\"success\"}");
-            //     printf("{\"result\":\"success\"} \n");
-            // }
-            // else //激活失败
-            // {
-            //     bzero(BleRespond, sizeof(BleRespond));
-            //     sprintf(BleRespond, "{\"result\":\"error\",\"code\":%d}", ret);
-            // }
         }
 
         break;
@@ -700,7 +609,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         gl_profile_tab[PROFILE_A_APP_ID].descr_handle = param->add_char_descr.attr_handle;
         ESP_LOGI(GATTS_TAG, "ADD_DESCR_EVT, status %d, attr_handle %d, service_handle %d\n",
                  param->add_char_descr.status, param->add_char_descr.attr_handle, param->add_char_descr.service_handle);
-        ble_app_stop(); //关闭蓝牙广播
+        // ble_app_stop(); //关闭蓝牙广播
         break;
     case ESP_GATTS_DELETE_EVT:
         break;
@@ -730,14 +639,12 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         break;
     }
     case ESP_GATTS_DISCONNECT_EVT:
-        ESP_LOGI(GATTS_TAG, "ESP_GATTS_DISCONNECT_EVT");
+        ESP_LOGI(GATTS_TAG, "%d,ESP_GATTS_DISCONNECT_EVT", __LINE__);
         esp_timer_stop(ble_response_timer_handle);
-        notify_flag = false;
-        // if (blere_flag == true)
-        {
-            blere_flag = false;
-            ble_app_stop(); //关闭蓝牙广播
-        }
+
+        //连接断开，释放休眠锁
+        xEventGroupSetBits(Task_Group, AP_MODE_END_BIT);
+
         // else
         // {
         //     esp_ble_gap_start_advertising(&adv_params); //开启蓝牙广播
@@ -799,6 +706,7 @@ void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp
 
 void ble_app_init(void)
 {
+    Ble_Queue = xQueueCreate(sizeof(int), 5);
     BLE_CON_FLAG = false;
     esp_err_t ret;
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
@@ -867,65 +775,123 @@ void ble_app_init(void)
             .dispatch_method = ESP_TIMER_TASK,
             .name = "esp_short_press_timer",
         };
-    esp_err_t err_code = esp_timer_create(&ble_response_timer, &ble_response_timer_handle);
-    if (err_code != ESP_OK)
-    {
-        ESP_LOGE("user_key_init", "esp_short_press_timer is %d\n", err_code);
-    }
+    esp_timer_create(&ble_response_timer, &ble_response_timer_handle);
+    esp_ble_gap_start_advertising(&adv_params);
 
     return;
 }
 
 void notify_respon(char *buff)
 {
-    if (notify_flag == true)
-    {
-        ESP_LOGI(GATTS_TAG, "ble respond=%s\n", buff);
-        esp_ble_gatts_send_indicate(not_gatts_if, not_param->write.conn_id, gl_profile_tab[PROFILE_A_APP_ID].char_handle,
-                                    strlen(buff), (uint8_t *)buff, false);
-    }
+    ESP_LOGI(GATTS_TAG, "ble respond=%s\n", buff);
+    esp_ble_gatts_send_indicate(not_gatts_if, not_param->write.conn_id, gl_profile_tab[PROFILE_A_APP_ID].char_handle,
+                                strlen(buff), (uint8_t *)buff, false);
 }
 
 //处理 notify 返回 任务
 void ble_respon_process(void *arg)
 {
+    int ret = 0;
     // ESP_LOGI(GATTS_TAG, "ble_respon_process \n");
-    while (notify_flag == true)
+    while (1)
     {
-        // ESP_LOGI(GATTS_TAG, "ble_respon_process \n");
-        if ((xEventGroupWaitBits(Net_sta_group, ACTIVED_BIT, false, true, 5000 / portTICK_RATE_MS) & ACTIVED_BIT) == ACTIVED_BIT)
+        if (xQueueReceive(Ble_Queue, &ret, 100 / portTICK_RATE_MS) == pdTRUE)
         {
-            // ESP_LOGI(GATTS_TAG, "ACTIVED_BIT \n");
-            strcpy(BleRespond, "{\"result\":\"success\"}");
-            break;
-        }
-        else
-        {
-            if ((xEventGroupGetBits(Net_sta_group) & BLE_RESP_BIT) == BLE_RESP_BIT)
+            if (ret < 0)
             {
-                // ble_resp_flag = false;
-                xEventGroupClearBits(Net_sta_group, BLE_RESP_BIT);
-                snprintf(BleRespond, sizeof(BleRespond), "{\"result\":\"error\",\"code\":%d}", Net_ErrCode);
-                break;
+                notify_respon(FAILURED_CODE);
             }
+            else
+            {
+                switch (ret)
+                {
+                case 0:
+                    notify_respon(SUCCESSED_CODE);
+                    break;
+
+                case 1: //Command:SetupWifi
+                    osi_bell_makeSound(200);
+                    // my_xTaskCreate(Green_Red_Led_FastFlashed_Task, "Green_Red_Led_FastFlashed_Task", 256, NULL, 7, &GR_LED_FAST_TaskHandle); //Create Green and Red Led Fast Flash Task
+                    short lRetVal = WiFi_Connect_Test(); //wlan connect test
+                    // vTaskDelete(GR_LED_FAST_TaskHandle); //delete Green and Red Led Fast Flash Task
+                    // SET_GREEN_LED_OFF();                 //Set Green Led Off
+                    // SET_RED_LED_OFF();                   //Set Red Led Off
+                    osi_bell_makeSound(200);
+
+                    if (lRetVal < 0)
+                    {
+                        notify_respon(FAILURED_CODE);
+                        // Red_Led_Flashed(3, 3);
+                    }
+                    else
+                    {
+                        notify_respon(SUCCESSED_CODE);
+                        // Green_Led_Flashed(3, 3);
+                    }
+                    break;
+
+                case 2: //{command: ReadProduct}
+                    memset(UartGet, 0, sizeof(UartGet));
+                    Read_Product_Set(UartGet, sizeof(UartGet));
+                    notify_respon(UartGet);
+                    break;
+
+                case 3: //Command:ReadWifi
+                    memset(UartGet, 0, sizeof(UartGet));
+                    Read_Wifi_Set(UartGet, sizeof(UartGet));
+                    notify_respon(UartGet);
+                    break;
+
+                case 4: //Command:GetLastError
+                    memset(UartGet, 0, sizeof(UartGet));
+                    Read_System_ERROR_Code(UartGet, sizeof(UartGet));
+                    notify_respon(UartGet);
+                    break;
+
+                case 5: //command:BreakOut
+                    // memset(UartGet, 0, sizeof(UartGet));
+                    // Read_System_ERROR_Code(UartGet, sizeof(UartGet));
+                    // notify_respon(UartGet);
+                    break;
+
+                case 6: //Command:ReadMetaData
+                    memset(UartGet, 0, sizeof(UartGet));
+                    Cmd_Read_MetaData(UartGet, sizeof(UartGet));
+                    notify_respon(UartGet);
+                    break;
+
+                case 9: //读取数据，数据量大，蓝牙暂不读取
+                    notify_respon(FAILURED_CODE);
+                    break;
+
+                case 10: //Command:ClearData
+                    notify_respon(SUCCESSED_CODE);
+                    vTaskDelete(GR_LED_TaskHandle);                                                                           //delete Green and Red Led Flash Task
+                    SET_GREEN_LED_OFF();                                                                                      //Set Green Led Off
+                    osi_Save_Data_Reset();                                                                                    //Nor Flash Memory Chip Reset
+                    my_xTaskCreate(Green_Red_LedFlashed_Task, "Green_Red_LedFlashed_Task", 256, NULL, 7, &GR_LED_TaskHandle); //Create Green and Red Led Flash Task
+
+                    break;
+
+                default:
+                    break;
+                }
+            }
+            ESP_LOGI(GATTS_TAG, "%d", __LINE__);
+            //退出任务
+            vTaskDelete(NULL);
+        }
+        //等待蓝牙数据出具超时
+        else if ((xEventGroupGetBits(Net_sta_group) & BLE_RESP_BIT) == BLE_RESP_BIT)
+        {
+            ESP_LOGI(GATTS_TAG, "%d", __LINE__);
+            // ble_resp_flag = false;
+            xEventGroupClearBits(Net_sta_group, BLE_RESP_BIT);
+            snprintf(BleRespond, sizeof(BleRespond), "{\"result\":\"error\",\"code\":%d}", Net_ErrCode);
+            break;
         }
     }
     // ESP_LOGI(GATTS_TAG, "ble_respon_process EXIT\n");
     notify_respon(BleRespond);
     vTaskDelete(NULL);
-}
-
-void ble_app_start(void)
-{
-    esp_ble_gap_start_advertising(&adv_params);
-    // Cnof_net_flag = true;
-    ESP_LOGI(GATTS_TAG, "turn on ble！");
-}
-
-void ble_app_stop(void)
-{
-    BLE_CON_FLAG = false;
-    esp_ble_gap_stop_advertising();
-    // Cnof_net_flag = false;
-    ESP_LOGI(GATTS_TAG, "turn off ble！");
 }
