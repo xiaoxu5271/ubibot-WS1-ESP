@@ -20,6 +20,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "driver/gpio.h"
+#include "esp_log.h"
 
 #include "PCF8563.h"
 #include "at24c08.h"
@@ -31,12 +32,16 @@
 #include "MagTask.h"
 #include "w25q128.h"
 #include "app_config.h"
+#include "ota.h"
+
+#define TAG "JsonParse"
 
 extern uint8_t HOST_IP[4];
 extern char SEC_TYPE[8];
 extern char SSID_NAME[32];
 extern char PASS_WORD[64];
 extern char HOST_NAME[64];
+extern char mqtt_ota_url[128];
 char ProductURI[128];
 
 extern QueueHandle_t xQueue1;     //Used for LED control task
@@ -722,7 +727,7 @@ static short Parse_cali(char *ptr)
 /*******************************************************************************
 // parse response commands
 *******************************************************************************/
-static char Parse_commands(char *ptr)
+int Parse_commands(char *ptr)
 {
   if (NULL == ptr)
   {
@@ -979,6 +984,38 @@ static char Parse_commands(char *ptr)
       }
     }
   }
+
+  pSub = cJSON_GetObjectItem(pJson, "action"); //
+  if (pSub != NULL)
+  {
+    if (strcmp(pSub->valuestring, "ota") == 0)
+    {
+      pSub = cJSON_GetObjectItem(pJson, "url"); //
+      if (pSub != NULL)
+      {
+        strcpy(mqtt_ota_url, pSub->valuestring);
+        ESP_LOGI(TAG, "OTA_URL=%s", mqtt_ota_url);
+
+        // pSub = cJSON_GetObjectItem(json_data_parse_1, "size"); //
+        // if (pSub != NULL)
+        // {
+        // mqtt_json_s.mqtt_file_size = (uint32_t)pSub->valuedouble;
+        // ESP_LOGI(TAG, "OTA_SIZE=%d", mqtt_json_s.mqtt_file_size);
+
+        pSub = cJSON_GetObjectItem(pJson, "version"); //
+        if (pSub != NULL)
+        {
+          // if (strcmp(pSub->valuestring, FIRMWARE) != 0) //与当前 版本号 对比
+          // {
+          ESP_LOGI(TAG, "OTA_VERSION=%s", pSub->valuestring);
+          ota_start(); //启动OTA
+          // }
+        }
+        // }
+      }
+    }
+  }
+
   cJSON_Delete(pJson);
 
   return SUCCESS;

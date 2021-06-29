@@ -59,6 +59,7 @@ extern volatile bool APIGET_TASK_END_FLAG;
 extern volatile uint16_t sys_run_time;
 extern unsigned long now_unix_t;    //now unix time
 extern volatile bool r_led_flashed; //red led flashed
+extern bool OTA_FLAG;
 
 #ifdef MAG_SENSOR
 extern volatile uint8_t door_status;
@@ -316,7 +317,7 @@ void Green_LedFlashed_Task(void *pvParameters)
     // osi_SyncObjWait(&xBinary17, -1); //Wait Internet Application Task Start Message
     ulTaskNotifyTake(pdTRUE, -1);
 
-    while (POST_TASK_END_FLAG || UPDATETIME_TASK_END_FLAG || APIGET_TASK_END_FLAG)
+    while (POST_TASK_END_FLAG || UPDATETIME_TASK_END_FLAG || APIGET_TASK_END_FLAG || OTA_FLAG)
     {
       if (cg_data_led)
       {

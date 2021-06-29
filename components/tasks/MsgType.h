@@ -104,8 +104,8 @@
 #define SUCCESSED_CODE "{\"status\":0,\"code\":0}"
 #define FAILURED_CODE "{\"status\":0,\"code\":4}"
 
-#define FIRMWARENUM "ws1_e_v1.0.1"
-#define FIRMWAREVIEW "&firmware=ws1_v1.0.1"
+#define FIRMWARENUM "ws1_e_v1.0.3"
+#define FIRMWAREVIEW "&firmware=ws1_e_v1.0.3"
 
 #define MAP_UtilsDelay(num) ets_delay_us((uint32_t)(num * 3 / 40))
 
@@ -130,6 +130,7 @@ EventGroupHandle_t Task_Group;
 #define DELE_TASK_BIT (1 << 15)      //
 #define FREST_TASK_BIT (1 << 16)     //
 #define USB_SET_BIT (1 << 17)        //
+#define OTA_TASK_BIT (1 << 18)       //
 
 #define ALL_BIT (POST_TASK_BIT |       \
                  UPDATETIME_TASK_BIT | \
@@ -148,7 +149,8 @@ EventGroupHandle_t Task_Group;
                  SAVE_TASK_BIT |       \
                  DELE_TASK_BIT |       \
                  FREST_TASK_BIT |      \
-                 USB_SET_BIT)
+                 USB_SET_BIT |         \
+                 OTA_TASK_BIT)
 
 typedef struct
 {

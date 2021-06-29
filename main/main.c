@@ -60,6 +60,7 @@
 #include "HttpClientTask.h"
 #include "PowerMeasureTask.h"
 #include "PeripheralDriver.h"
+#include "ota.h"
 
 /*******************************************************************************
 //Global Variables
@@ -201,6 +202,7 @@ char HOST_NAME[64];
 char POST_REQUEST_URI[250];
 char Post_Data_Buffer[4096];
 char Read_Response_Buffer[RESP_BUF_LEN];
+char mqtt_ota_url[128];
 
 web_product web_product_msg;
 web_errcode web_errcode_msg;
@@ -426,96 +428,6 @@ static long fn_t_sleep_time_min(void)
 
 	return slp_t;
 }
-
-/*******************************************************************************
-//callback function for timer interrupt handler
-CC3200 设置睡眠时间，是在运行中设置，设置后立即即使，如果还未进入睡眠而计时到，则进入此函数
-*******************************************************************************/
-// void TimerCallback(void *vParam)
-// {
-// #ifdef DEBUG
-
-// 	UART_PRINT("timer wake up\r\n");
-
-// #endif
-
-// #ifdef CHECK_WATER_MARK
-
-// 	// osi_SyncObjSignalFromISR(&xBinary14);
-// 		if (xBinary14 != NULL)
-// vTaskNotifyGiveFromISR(xBinary14, NULL);
-
-// #endif
-
-// 	// osi_SyncObjSignalFromISR(&xBinary9); //check Task start time
-// 		if (xBinary9 != NULL)
-// if (xBinary9 != NULL)
-// 	vTaskNotifyGiveFromISR(xBinary9, NULL);
-
-// 	return;
-// }
-
-// cc_hndl tTimerHndl = NULL; //handle for the Timer
-
-/*******************************************************************************
-//set Timer as a wake up source from low power modes
-*******************************************************************************/
-// int SetTimerAsWkUp(long slp_time, bool call_back)
-// {
-// 	int Set_val = -1;
-// 	struct cc_timer_cfg sRealTimeTimer;
-// 	struct u64_time sIntervalTimer;
-// 	struct u64_time sInitTime;
-
-// 	if (tTimerHndl != NULL)
-// 	{
-// 		Set_val = cc_timer_stop(tTimerHndl); //Stop an active timer
-// 		if (Set_val < 0)
-// 		{
-// 			return FAILURE;
-// 		}
-
-// 		Set_val = cc_timer_delete(tTimerHndl); //Deletes an inactive timer
-// 		if (Set_val < 0)
-// 		{
-// 			return FAILURE;
-// 		}
-// 	}
-
-// 	sInitTime.secs = 0;
-// 	sInitTime.nsec = 0;
-// 	Set_val = cc_rtc_set(&sInitTime);
-// 	if (Set_val < 0)
-// 	{
-// 		return FAILURE;
-// 	}
-
-// 	sRealTimeTimer.source = HW_REALTIME_CLK;
-// 	if (call_back)
-// 	{
-// 		sRealTimeTimer.timeout_cb = TimerCallback;
-// 	}
-// 	else
-// 	{
-// 		sRealTimeTimer.timeout_cb = NULL;
-// 	}
-// 	sRealTimeTimer.cb_param = NULL;
-// 	tTimerHndl = cc_timer_create(&sRealTimeTimer);
-// 	if (tTimerHndl == NULL)
-// 	{
-// 		return FAILURE;
-// 	}
-
-// 	sIntervalTimer.secs = slp_time;
-// 	sIntervalTimer.nsec = 0;
-// 	Set_val = cc_timer_start(tTimerHndl, &sIntervalTimer, OPT_TIMER_PERIODIC);
-// 	if (Set_val < 0)
-// 	{
-// 		return FAILURE;
-// 	}
-
-// 	return SUCCESS;
-// }
 
 /*******************************************************************************
 //set GPIOs as a wake up source from low power modes
@@ -1640,51 +1552,6 @@ static short Read_System_Status(uint8_t *read_flag, uint8_t buf_len)
 	return FAILURE;
 }
 
-/*******************************************************************************
-//Watch Dog Rest Task
-*******************************************************************************/
-// void WatchDog_Reset_Task(void *pvParameters)
-// {
-// 	uint8_t msg_val;
-
-// 	for (;;)
-// 	{
-// 		// osi_MsgQRead(&xQueue3, &msg_val, -1); //Wait WatchDog and SleepTimer Task Start Message
-// 		xQueueReceive(xQueue3, &msg_val, portMAX_DELAY);
-
-// 		if (msg_val == MSG_SLP_VAL)
-// 		{
-// 			sleep_time = fn_t_sleep_time_min();
-
-// 			slp_t_ms = 0;
-
-// 			ESP_LOGI(TAG, "%d,sleep_time=%ld", __LINE__, sleep_time);
-
-// 			//设置休眠唤醒时间，执行即计时，非休眠则进入回调
-// 			// rtc_result = SetTimerAsWkUp(sleep_time, 1); //set Timer as a wake up source from low power modes
-// 			// if (rtc_result < 0)
-// 			// {
-// 			// 	Reboot_MCU(); //Reboot the MCU
-// 			// }
-// 		}
-// 		// else if (msg_val == MSG_WD_VAL)
-// 		// {
-// 		// 	portENTER_CRITICAL(); //enter critical
-
-// 		// 	WatchdogAck(); //Acknowledge the watchdog
-
-// 		// 	taskEXIT_CRITICAL(0); //exit crtitcal
-// 		// }
-
-// 		if (sys_run_time > SYS_RUN_TIMEOUT)
-// 		{
-// 			// Reboot_MCU(); //Reboot the MCU
-// 			ESP_LOGE(TAG, "%d,sys_run_time =%d TIME OUT", __LINE__, sys_run_time);
-// 			esp_restart();
-// 		}
-// 	}
-// }
-
 esp_timer_handle_t http_timer_suspend_p = NULL;
 void timer_app_cb(void *arg);
 esp_timer_handle_t timer_app_handle = NULL; //定时器句柄
@@ -1823,12 +1690,12 @@ void app_main(void)
 				if (push_time++ == 20) //About 3s,POWER ON
 				{
 					SET_GREEN_LED_ON();
-					bell_makeSound(200);
+					bell_makeSound(150);
 				}
 
 				if (push_time == 50) //About 7.5s,Creat AP Mode Task
 				{
-					bell_makeSound(200);
+					bell_makeSound(150);
 					while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
 					{
 						Green_Red_Led_Flashed(1, 6);
@@ -1843,11 +1710,27 @@ void app_main(void)
 				if (push_time >= 100) //About 15s,Creat Factory Reset Task
 				{
 					SET_GREEN_LED_OFF();
-					bell_makeSound(200);
+					bell_makeSound(150);
 					while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
 					{
 						// WatchdogAck(); //Acknowledge the watchdog
 						Red_Led_Flashed(1, 3);
+						push_time += 6;
+						if (push_time >= 134)
+						{
+							break;
+						}
+					}
+				}
+
+				if (push_time >= 134) //About 20s,回滚出厂固件
+				{
+					SET_GREEN_LED_OFF();
+					bell_makeSound(200);
+					while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
+					{
+						// WatchdogAck(); //Acknowledge the watchdog
+						Red_Led_Flashed(1, 1);
 					}
 					break;
 				}
@@ -1860,9 +1743,13 @@ void app_main(void)
 			{
 				SET_GREEN_LED_OFF();															   //LED OFF
 				at24c08_WriteData(SYSTEM_STATUS_ADDR, (uint8_t *)SYSTEM_ON, strlen(SYSTEM_ON), 1); //Restor The System Status-ON
-				Sensors_Init();																	   //Senosrs Init when power on
-																								   // Set_GPIO_AsWkUp();														// setting GPIO wakeup source
-																								   // lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE);						//Setting up HIBERNATE mode for the system
+
+				if (push_time >= 134)
+				{
+					ota_back();
+				}
+
+				Sensors_Init(); //Senosrs Init when power on
 
 				// my_xTaskCreate(Tasks_Check_Task, "Tasks_Check_Task", 512, NULL, 1, &xBinary13);			  //Create Check Tasks End
 				my_xTaskCreate(Green_LedFlashed_Task, "Green_LedFlashed_Task", 256, NULL, 7, &xBinary17); //Create GREEN LED Blink Task When Internet Application

@@ -56,6 +56,7 @@
 
 extern uint8_t Host_Flag;
 extern uint8_t HOST_IP[4];
+extern bool OTA_FLAG;
 
 extern QueueHandle_t xQueue0; //Used for cjson and memory save
 
@@ -577,7 +578,9 @@ void DataPostTask(void *pvParameters)
 
     // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
 
-    // osi_SyncObjSignalFromISR(&xBinary17); //Start LED Blink
+    // osi_SyncObjSignalFromISR(&xBinary17);
+
+    //Start LED Blink
     if (xBinary17 != NULL)
       vTaskNotifyGiveFromISR(xBinary17, NULL);
 
@@ -702,8 +705,10 @@ void DataPostTask(void *pvParameters)
             }
           }
         }
-
-        Wlan_Disconnect_AP(); //wlan disconnect form the ap
+        if (OTA_FLAG == false)
+        {
+          Wlan_Disconnect_AP(); //wlan disconnect form the ap
+        }
 
         // sl_Stop(SL_STOP_TIMEOUT); //stop the simple link
         // MAP_UtilsDelay(80000); //Delay About 6ms
