@@ -290,27 +290,20 @@ int HTTPPostMethod(esp_http_client_handle_t httpClient, unsigned long DataLen, u
   //osi_at24c08_ReadData(HOST_ADDR,(uint8_t*)HOST_NAME,sizeof(HOST_NAME),1);  //read host name
 
   osi_at24c08_ReadData(DATAURI_ADDR, (uint8_t *)POST_REQUEST_URI, sizeof(POST_REQUEST_URI), 1); //read DATA-URI
+  // ESP_LOGI(TAG, "%d,%s", __LINE__, POST_REQUEST_URI);
 
-  url_len = strlen(POST_REQUEST_URI);
-
+  snprintf(POST_REQUEST_URI + strlen(POST_REQUEST_URI), sizeof(POST_REQUEST_URI) - strlen(POST_REQUEST_URI), "&firmware=%s", FIRMWARENUM);
   base64_encode(SSID_NAME, strlen(SSID_NAME), base64_ssid, sizeof(base64_ssid));
+  snprintf(POST_REQUEST_URI + strlen(POST_REQUEST_URI), sizeof(POST_REQUEST_URI) - strlen(POST_REQUEST_URI), "&ssid_base64=%s", base64_ssid);
 
-  memcpy(POST_REQUEST_URI + url_len, "&ssid_base64=", strlen("&ssid_base64="));
-
-  url_len += strlen("&ssid_base64=");
-
-  memcpy(POST_REQUEST_URI + url_len, base64_ssid, strlen(base64_ssid));
-
-  url_len += strlen(base64_ssid);
-
-  POST_REQUEST_URI[url_len] = '\0';
+  POST_REQUEST_URI[strlen(POST_REQUEST_URI)] = '\0';
 
   snprintf(status_buf, sizeof(status_buf), ",\"status\":\"mac=%s,usb=%d\",\"ssid_base64\":\"%s\"}",
            mac_buf,
            usb_status_val,
            base64_ssid); //MAC SSID USB
 
-  ESP_LOGI(TAG, "%s", POST_REQUEST_URI);
+  ESP_LOGI(TAG, "%d,%s", __LINE__, POST_REQUEST_URI);
 
   esp_http_client_set_url(httpClient, POST_REQUEST_URI);
   esp_http_client_set_method(httpClient, HTTP_METHOD_POST);

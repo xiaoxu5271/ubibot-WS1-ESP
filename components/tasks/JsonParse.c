@@ -1411,17 +1411,12 @@ int ParseSetJSONData(char *ptr)
 
       i += strlen(pSubSub->valuestring);
 
-      memcpy(ProductURI + i, FIRMWAREVIEW, strlen(FIRMWAREVIEW) + 1);
+      // memcpy(ProductURI + i, FIRMWAREVIEW, strlen(FIRMWAREVIEW) + 1);
 
-      i += strlen(FIRMWAREVIEW);
+      // i += strlen(FIRMWAREVIEW);
 
       ProductURI[i] = '\0';
-
-#ifdef DEBUG_RESPONSE
-
-      osi_UartPrint_Mul("DataURI:", ProductURI);
-
-#endif
+      ESP_LOGI(TAG, "%d,%s", __LINE__, ProductURI);
 
       osi_at24c08_WriteData(DATAURI_FLAG_ADDR, (uint8_t *)DATA_URI, strlen(DATA_URI), 1); //save datauri flag to at24c08
 
