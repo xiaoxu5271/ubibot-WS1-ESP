@@ -151,6 +151,8 @@ void DataSaveTask(void *pvParameters)
 
     cJSON_free(OutBuffer);
 
+    // ESP_LOGI(TAG, "%d,%s", __LINE__, OutBuffer);
+
     xSemaphoreGive(xMutex3); //cJSON Semaphore Give
 
     if ((POST_NUM >= Memory_Max_Addr) || (WRITE_ADDR > Memory_Max_Addr) || (POST_ADDR > Memory_Max_Addr) || (DELETE_ADDR > Memory_Max_Addr))

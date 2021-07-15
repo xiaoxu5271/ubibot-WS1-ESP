@@ -18,6 +18,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "driver/gpio.h"
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
@@ -31,6 +32,7 @@
 
 extern TaskHandle_t xBinary7; //For Power Measure Task
 extern QueueHandle_t xQueue0; //Used for cjson and memory save
+extern SemaphoreHandle_t xMutex2;
 
 extern float f4_a, f4_b;
 
@@ -80,6 +82,7 @@ void PowerMeasureTask(void *pvParameters)
     ulTaskNotifyTake(pdTRUE, -1);
     xEventGroupClearBits(Task_Group, SENTASK_7);
 
+    xSemaphoreTake(xMutex2, -1);
     //initialize ADC
     adc1_config_width(width);
     adc1_config_channel_atten(channel, atten);
@@ -123,6 +126,7 @@ void PowerMeasureTask(void *pvParameters)
       // MAP_UtilsDelay(20000000); //Delay About 1.5s
       vTaskDelay(1500 / portTICK_RATE_MS);
     }
+    xSemaphoreGive(xMutex2);
 
 #ifdef USE_LCD
     if (p_value > 3.0)

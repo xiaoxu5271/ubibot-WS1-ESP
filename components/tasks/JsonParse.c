@@ -1404,6 +1404,7 @@ int ParseSetJSONData(char *ptr)
 #endif
 
       memcpy(ProductURI, DataURI1, strlen(DataURI1) + 1);
+      ESP_LOGI(TAG, "%d,%s", __LINE__, ProductURI);
 
       i += strlen(DataURI1);
 
@@ -1421,6 +1422,8 @@ int ParseSetJSONData(char *ptr)
       osi_at24c08_WriteData(DATAURI_FLAG_ADDR, (uint8_t *)DATA_URI, strlen(DATA_URI), 1); //save datauri flag to at24c08
 
       osi_at24c08_WriteData(DATAURI_ADDR, (uint8_t *)ProductURI, strlen(ProductURI), 1); //save datauri to at24c08
+
+      ESP_LOGI(TAG, "%d,%s", __LINE__, ProductURI);
     }
   }
 

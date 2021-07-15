@@ -219,136 +219,6 @@ extern void WlanAPMode(void *pvParameters);
 #define TAG "MAIN"
 
 /*******************************************************************************
-//read product 
-*******************************************************************************/
-void Web_read_product(void)
-{
-	uint8_t read_len;
-	char mac_addr[8] = {0};
-	uint8_t read_buf[32];
-
-	memset(&web_product_msg, 0, sizeof(web_product_msg));
-
-	memset(read_buf, 0, sizeof(read_buf));
-
-	osi_at24c08_ReadData(PRODUCT_ID_ADDR, (uint8_t *)read_buf, sizeof(read_buf), 1);
-
-	snprintf((char *)web_product_msg.pid, sizeof(web_product_msg.pid), "{\"ProductID\":\"%s\"}", read_buf);
-
-	memset(read_buf, 0, sizeof(read_buf));
-
-	osi_at24c08_ReadData(SERISE_NUM_ADDR, (uint8_t *)read_buf, sizeof(read_buf), 1);
-
-	snprintf((char *)web_product_msg.psn, sizeof(web_product_msg.psn), "{\"SeriesNumber\":\"%s\"}", read_buf);
-
-	memset(read_buf, 0, sizeof(read_buf));
-
-	osi_at24c08_ReadData(HOST_ADDR, (uint8_t *)read_buf, sizeof(read_buf), 1);
-
-	snprintf((char *)web_product_msg.hst, sizeof(web_product_msg.hst), "{\"Host\":\"%s\"}", read_buf);
-
-	memset(read_buf, 0, sizeof(read_buf));
-
-	// osi_at24c08_ReadData(MAC_ADDR, (uint8_t *)mac_addr, SL_MAC_ADDR_LEN, 0); //Read MAC
-	esp_read_mac((uint8_t *)mac_addr, 0); //获取芯片内部默认出厂MAC
-
-	snprintf((char *)read_buf, sizeof(read_buf), "%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-
-	snprintf((char *)web_product_msg.mac, sizeof(web_product_msg.mac), "{\"MAC\":\"%s\"}", read_buf);
-
-	snprintf((char *)web_product_msg.pfw, sizeof(web_product_msg.pfw), "{\"set_wifi\":1,\"firmware\":\"%s\"}", FIRMWARENUM);
-
-	memset(SSID_NAME, 0, sizeof(SSID_NAME));
-
-	read_len = osi_at24c08_read_byte(SSID_LEN_ADDR);
-
-	if (read_len > sizeof(SSID_NAME))
-	{
-		read_len = sizeof(SSID_NAME);
-	}
-
-	osi_at24c08_ReadData(SSID_ADDR, (uint8_t *)SSID_NAME, read_len, 0); //Read Wifi SSID
-
-	snprintf((char *)web_product_msg.ssid, sizeof(web_product_msg.ssid), "{\"ssid\":\"%s\"}", SSID_NAME);
-}
-
-/*******************************************************************************
-//read error code 
-*******************************************************************************/
-void Web_read_errcode(void)
-{
-	unsigned long err_time;
-
-	memset(&web_errcode_msg, 0, sizeof(web_errcode_msg));
-
-	err_time = osi_at24c08_read(WD_RESET_ERR);
-	if (err_time)
-	{
-		snprintf((char *)web_errcode_msg.wrt, sizeof(web_errcode_msg.wrt), "{\"wd_rst\":%ld}", err_time);
-	}
-
-	err_time = osi_at24c08_read(CNT_WIFI_FLR_ERR);
-	if (err_time)
-	{
-		snprintf((char *)web_errcode_msg.cwf, sizeof(web_errcode_msg.cwf), "{\"c_wf_flr\":%ld}", err_time);
-	}
-
-	err_time = osi_at24c08_read(CNT_SERVER_FLR_ERR);
-	if (err_time)
-	{
-		snprintf((char *)web_errcode_msg.csf, sizeof(web_errcode_msg.csf), "{\"c_srv_flr\":%ld}", err_time);
-	}
-
-	err_time = osi_at24c08_read(API_GET_FLR_ERR);
-	if (err_time)
-	{
-		snprintf((char *)web_errcode_msg.agf, sizeof(web_errcode_msg.agf), "{\"api_gt_flr\":%ld}", err_time);
-	}
-
-	err_time = osi_at24c08_read(MEMORY_SAVE_DATA_ERR);
-	if (err_time)
-	{
-		snprintf((char *)web_errcode_msg.mde, sizeof(web_errcode_msg.mde), "{\"mry_dt_err\":%ld}", err_time);
-	}
-
-	err_time = osi_at24c08_read(POST_DATA_JSON_FAULT);
-	if (err_time)
-	{
-		snprintf((char *)web_errcode_msg.pde, sizeof(web_errcode_msg.pde), "{\"pt_dt_js_err\":%ld}", err_time);
-	}
-
-	err_time = osi_at24c08_read(POST_DATA_FLR_ERR);
-	if (err_time)
-	{
-		snprintf((char *)web_errcode_msg.pdf, sizeof(web_errcode_msg.pdf), "{\"pt_dt_flr\":%ld}", err_time);
-	}
-
-	err_time = osi_at24c08_read(SCN_WF_FLR_ERR);
-	if (err_time)
-	{
-		snprintf((char *)web_errcode_msg.swf, sizeof(web_errcode_msg.swf), "{\"scn_wf_flr\":%ld}", err_time);
-	}
-
-	err_time = osi_at24c08_read(WF_PWD_WR_ERR);
-	if (err_time)
-	{
-		snprintf((char *)web_errcode_msg.wpw, sizeof(web_errcode_msg.wpw), "{\"wf_pwd_wr\":%ld}", err_time);
-	}
-}
-
-/*******************************************************************************
-//Routine to feed to watchdog
-*******************************************************************************/
-// void WatchdogAck(void)
-// {
-// #ifdef USE_WD
-
-// 	WatchdogIntClear(WDT_BASE); //Acknowledge watchdog by clearing interrupt
-
-// #endif
-// }
-
-/*******************************************************************************
 //calculat the fn min sleep time
 找到 fn_ 里最小值
 *******************************************************************************/
@@ -843,6 +713,10 @@ void MainTask_Create(void *pvParameters)
 	if (xBinary13 != NULL)
 		vTaskNotifyGiveFromISR(xBinary13, NULL);
 
+	OperateData_Read(); //Read Operate Data in At24c08
+	MetaData_Read();	//Read Metadata in At24c08
+	CaliData_Read();	//Read Calidata in At24c08
+
 	osi_at24c08_read_addr(); //Read Post Data Amount/Write Data/Post Data/Delete Data Address
 
 	my_xTaskCreate(Timer_Check_Task, "Timer_Check_Task", 384, NULL, 9, &xBinary9); //Check Tasks Operate Time
@@ -863,7 +737,7 @@ void MainTask_Create(void *pvParameters)
 
 	my_xTaskCreate(PowerMeasureTask, "PowerMeasureTask", 448, NULL, 7, &xBinary7); //Create Power Measure Task
 
-	my_xTaskCreate(DataSaveTask, "DataSaveTask", 1024, NULL, 7, NULL); //Create Data Save Task
+	my_xTaskCreate(DataSaveTask, "DataSaveTask", 1024, NULL, 8, NULL); //Create Data Save Task
 
 	my_xTaskCreate(DataPostTask, "DataPostTask", 2048, NULL, 5, &xBinary0); //Create Data Post Task
 
@@ -1374,13 +1248,15 @@ void Enter_Sleep(bool OFF_FLAG)
 		const uint64_t ext_wakeup_pin_1_mask = 1ULL << ext_wakeup_pin_1;
 		const int ext_wakeup_pin_2 = ACCE_SRC_WKUP;
 		const uint64_t ext_wakeup_pin_2_mask = 1ULL << ext_wakeup_pin_2;
+		const int ext_wakeup_pin_3 = USB_SRC_WKUP;
+		const uint64_t ext_wakeup_pin_3_mask = 1ULL << ext_wakeup_pin_3;
 
 		osi_Read_UnixTime(); //update system unix time
 		sleep_time = fn_t_sleep_time_min();
+		ESP_LOGI(TAG, "sleep_time=%ld", sleep_time);
 		//提前500ms 唤醒
 		esp_sleep_enable_timer_wakeup(sleep_time * 1000000 - (500 * 1000));
 
-		ESP_LOGI(TAG, "sleep_time=%ld", sleep_time);
 		esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask, ESP_EXT1_WAKEUP_ALL_LOW);
 		ESP_LOGI(TAG, " SET BUTTON & ACCE wakeup");
 	}
@@ -1647,12 +1523,6 @@ void app_main(void)
 	// platform_init();												 //Initialize the platform
 	if (Read_System_Status(read_flag, sizeof(read_flag)) == SUCCESS) //Check System Status
 	{
-		OperateData_Read(); //Read Operate Data in At24c08
-		MetaData_Read();	//Read Metadata in At24c08
-		CaliData_Read();	//Read Calidata in At24c08
-
-		// VStartSimpleLinkSpawnTask(SPAWN_TASK_PRIORITY); //Start the SimpleLink Host
-
 		if (!strcmp((char const *)read_flag, SYSTEM_ON)) //"SYSTEM ON"
 		{
 

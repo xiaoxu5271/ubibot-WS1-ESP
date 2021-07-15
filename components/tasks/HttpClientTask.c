@@ -551,6 +551,7 @@ void DataPostTask(void *pvParameters)
   unsigned long post_data_len;
   unsigned long read_data_end_addr;
   SensorMessage Rssi_Msg;
+  wifi_ap_record_t wifidata_t;
 
   for (;;)
   {
@@ -577,27 +578,40 @@ void DataPostTask(void *pvParameters)
     if (xBinary17 != NULL)
       vTaskNotifyGiveFromISR(xBinary17, NULL);
 
-    Rssi_val = Scan_Wifi_List(NULL, NULL, 0);
+    if (wifi_mode != 1)
+    {
+      Rssi_val = Scan_Wifi_List(NULL, NULL, 0);
+    }
+    else
+    {
+      Rssi_val = 1;
+    }
 
     if ((Rssi_val != ERROR_CODE) || (wifi_mode == 1))
     {
-      if (Rssi_val == ERROR_CODE)
-      {
-        osi_at24c08_ReadData(SECTYPE_ADDR, (uint8_t *)SEC_TYPE, sizeof(SEC_TYPE), 1); //Read Wifi Sectype
-      }
-      else
-      {
-        Rssi_Msg.sensornum = RSSI_NUM;               //Message Number
-        Rssi_Msg.sensorval = f5_a * Rssi_val + f5_b; //Message Value
-                                                     // osi_MsgQWrite(&xQueue0, &Rssi_Msg, OSI_NO_WAIT); //Rssi Value Data Message
-        xQueueSend(xQueue0, &Rssi_Msg, 0);
-      }
+      // if (Rssi_val == ERROR_CODE)
+      // {
+      //   osi_at24c08_ReadData(SECTYPE_ADDR, (uint8_t *)SEC_TYPE, sizeof(SEC_TYPE), 1); //Read Wifi Sectype
+      // }
+      // else
+      // {
+      //   Rssi_Msg.sensornum = RSSI_NUM;               //Message Number
+      //   Rssi_Msg.sensorval = f5_a * Rssi_val + f5_b; //Message Value
+      //                                                // osi_MsgQWrite(&xQueue0, &Rssi_Msg, OSI_NO_WAIT); //Rssi Value Data Message
+      //   xQueueSend(xQueue0, &Rssi_Msg, 0);
+      // }
 
       for (err_code_num = 0; err_code_num < RETRY_TIME_OUT; err_code_num++)
       {
         lRetVal = WlanConnect(); //Wlan Connect To The Accesspoint
         if (lRetVal >= 0)
         {
+          esp_wifi_sta_get_ap_info(&wifidata_t);
+          Rssi_Msg.sensornum = RSSI_NUM;                      //Message Number
+          Rssi_Msg.sensorval = f5_a * wifidata_t.rssi + f5_b; //Message Value
+                                                              // osi_MsgQWrite(&xQueue0, &Rssi_Msg, OSI_NO_WAIT); //Rssi Value Data Message
+          xQueueSend(xQueue0, &Rssi_Msg, 0);
+          // vTaskDelay(10 / portTICK_RATE_MS);
           ESP_LOGI(TAG, "%d", __LINE__);
           break;
         }
@@ -605,7 +619,7 @@ void DataPostTask(void *pvParameters)
         {
           ESP_LOGI(TAG, "%d", __LINE__);
           Wlan_Disconnect_AP(); //wlan disconnect form the ap
-          vTaskDelay(1000 / portTICK_RATE_MS);
+          vTaskDelay(500 / portTICK_RATE_MS);
         }
       }
 
@@ -617,7 +631,9 @@ void DataPostTask(void *pvParameters)
         Read_cali(calidata_buf, sizeof(calidata_buf)); // cali data
 
         ESP_LOGI(TAG, "%d", __LINE__);
-
+        //等待数据保存完成，防止连续发送两次数据
+        xEventGroupWaitBits(Task_Group, SAVE_TASK_BIT, false, false, -1);
+        ESP_LOGI(TAG, "%d", __LINE__);
         while (POST_NUM)
         {
           sys_run_time = 0; //clear wifi post time

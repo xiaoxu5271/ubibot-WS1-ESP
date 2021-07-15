@@ -190,7 +190,7 @@ void stop_user_wifi(void)
         {
             return;
         }
-        ESP_ERROR_CHECK(err);
+        // ESP_ERROR_CHECK(err);
         ESP_LOGI(TAG, "turn off WIFI! \n");
     }
     else
