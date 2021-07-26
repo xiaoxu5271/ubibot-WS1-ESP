@@ -289,7 +289,7 @@ void start_user_wifi(void)
         esp_netif_set_dns_info(STA_netif_t, ESP_NETIF_DNS_BACKUP, &backup_dns_info);
     }
 
-    // ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_start());
     // esp_wifi_set_max_tx_power(8);
     // esp_wifi_get_max_tx_power(&wifi_pow);
     ESP_LOGI(TAG, "turn on WIFI! power=%d\n", wifi_pow);
