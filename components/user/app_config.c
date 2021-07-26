@@ -161,7 +161,7 @@ void init_wifi(void) //
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
     // ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    // ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM)); //最大省电
+    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM)); //最大省电
     // ESP_ERROR_CHECK(esp_wifi_get_config(ESP_IF_WIFI_STA, &s_staconf));
     // wifi_config_t s_staconf;
     // memset(&s_staconf.sta, 0, sizeof(s_staconf));
@@ -201,6 +201,7 @@ void stop_user_wifi(void)
 
 void start_user_wifi(void)
 {
+    int8_t wifi_pow = 0;
     //是否开启初始化
     if ((xEventGroupGetBits(Net_sta_group) & WIFI_S_I_BIT) == WIFI_S_I_BIT)
     {
@@ -213,6 +214,7 @@ void start_user_wifi(void)
 
     ESP_LOGI(TAG, "%d,start_user_wifi", __LINE__);
     uint8_t read_len;
+
     if ((xEventGroupGetBits(Net_sta_group) & WIFI_S_BIT) == WIFI_S_BIT)
     {
         esp_err_t err = esp_wifi_stop();
@@ -249,6 +251,7 @@ void start_user_wifi(void)
     strcpy((char *)s_staconf.sta.password, PASS_WORD);
     s_staconf.sta.scan_method = 1;
     s_staconf.sta.sort_method = 0;
+    s_staconf.sta.listen_interval = 0;
 
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &s_staconf));
 
@@ -286,8 +289,10 @@ void start_user_wifi(void)
         esp_netif_set_dns_info(STA_netif_t, ESP_NETIF_DNS_BACKUP, &backup_dns_info);
     }
 
-    ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_LOGI(TAG, "turn on WIFI! \n");
+    // ESP_ERROR_CHECK(esp_wifi_start());
+    // esp_wifi_set_max_tx_power(8);
+    // esp_wifi_get_max_tx_power(&wifi_pow);
+    ESP_LOGI(TAG, "turn on WIFI! power=%d\n", wifi_pow);
 }
 
 #define DEFAULT_SCAN_LIST_SIZE 5
@@ -327,18 +332,18 @@ void start_softap(void)
         .ap = {
             // .ssid = AP_SSID,
             // .ssid_len = 5,
-            // .channel = EXAMPLE_ESP_WIFI_CHANNEL,
+            .channel = 13,
             // .password = "12345678",
             .max_connection = SOFT_AP_MAX_CONNECT,
             .authmode = WIFI_AUTH_OPEN},
     };
 
     memcpy(wifi_config.ap.ssid, AP_SSID, sizeof(AP_SSID));
-    // wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    wifi_config.ap.ssid_len = strlen(AP_SSID);
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    // ESP_ERROR_CHECK(esp_wifi_start());
 
     // tcpip_adapter_ip_info_t ip_info = {
     //     .ip.addr = ipaddr_addr("192.168.1.1"),
@@ -359,7 +364,9 @@ void start_softap(void)
     //注意，ap使用DHCPS ,即 DHCP服务器
     ESP_ERROR_CHECK(esp_netif_dhcps_stop(AP_netif_t));
     esp_netif_set_ip_info(AP_netif_t, &ip_info);
-    esp_netif_dhcps_start(AP_netif_t);
+    ESP_ERROR_CHECK(esp_netif_dhcps_start(AP_netif_t));
+
+    ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG, "wifi_init_softap finished. ");
 }
@@ -635,6 +642,11 @@ void WlanAPMode(void *pvParameters)
     ip_protocol = IPPROTO_IP;
     int listen_sock;
 
+    int keepAlive = 10;
+    int keepIdle = 15;
+    int keepInterval = 15;
+    int keepCount = 3;
+
     // osi_SyncObjSignalFromISR(&xBinary13); //Start Tasks End Check
     if (xBinary13 != NULL)
         vTaskNotifyGiveFromISR(xBinary13, NULL);
@@ -652,6 +664,10 @@ void WlanAPMode(void *pvParameters)
         ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
         goto CLEAN_UP;
     }
+
+    //4.3
+    int opt = 1;
+    setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     ESP_LOGI(TAG, "Socket created");
 
@@ -674,8 +690,8 @@ void WlanAPMode(void *pvParameters)
     for (;;)
     {
         ESP_LOGI(TAG, "Socket listening");
-        struct sockaddr_in6 source_addr; // Large enough for both IPv4 or IPv6
-        uint addr_len = sizeof(source_addr);
+        struct sockaddr_storage source_addr; // Large enough for both IPv4 or IPv6
+        socklen_t addr_len = sizeof(source_addr);
         ESP_LOGI(TAG, "%d", __LINE__);
         sock = accept(listen_sock, (struct sockaddr *)&source_addr, &addr_len);
         ESP_LOGI(TAG, "%d", __LINE__);
@@ -685,17 +701,19 @@ void WlanAPMode(void *pvParameters)
             break;
         }
 
+        //4.3 Set tcp keepalive option
+        setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &keepAlive, sizeof(int));
+        setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &keepIdle, sizeof(int));
+        setsockopt(sock, IPPROTO_TCP, TCP_KEEPINTVL, &keepInterval, sizeof(int));
+        setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, &keepCount, sizeof(int));
+
         // Convert ip address to string
-        if (source_addr.sin6_family == PF_INET)
+        if (source_addr.ss_family == PF_INET)
         {
             inet_ntoa_r(((struct sockaddr_in *)&source_addr)->sin_addr.s_addr, addr_str, sizeof(addr_str) - 1);
             ESP_LOGI(TAG, "%d", __LINE__);
         }
-        else if (source_addr.sin6_family == PF_INET6)
-        {
-            inet6_ntoa_r(source_addr.sin6_addr, addr_str, sizeof(addr_str) - 1);
-            ESP_LOGI(TAG, "%d", __LINE__);
-        }
+
         ESP_LOGI(TAG, "Socket accepted ip address: %s", addr_str);
 
         for (;;)
@@ -705,7 +723,8 @@ void WlanAPMode(void *pvParameters)
             int len = recv(sock, UartGet, sizeof(UartGet) - 1, 0);
             if (len < 0)
             {
-                ESP_LOGE(TAG, "Error occurred during receiving: errno %d", errno);
+                ESP_LOGE(TAG, "Error occurred during receiving: errno %s", esp_err_to_name(errno));
+                break;
             }
             else if (len == 0)
             {

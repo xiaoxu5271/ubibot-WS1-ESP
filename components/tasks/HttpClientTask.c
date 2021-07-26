@@ -603,7 +603,7 @@ void DataPostTask(void *pvParameters)
 
       for (err_code_num = 0; err_code_num < RETRY_TIME_OUT; err_code_num++)
       {
-        lRetVal = WlanConnect(); //Wlan Connect To The Accesspoint
+        lRetVal = WlanConnect(); //Wlan Connect To The Accesspoint 10s timeout
         if (lRetVal >= 0)
         {
           esp_wifi_sta_get_ap_info(&wifidata_t);
