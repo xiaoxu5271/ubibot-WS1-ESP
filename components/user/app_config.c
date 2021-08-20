@@ -444,10 +444,10 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number, ap_info));
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ScanAP));
     ESP_LOGI(TAG, "Total APs scanned = %u", ScanAP);
-    // for (int i = 0; (i < DEFAULT_SCAN_LIST_SIZE) && (i < ap_count); i++)
-    // {
-    //     printf("{\"SSID\":\"%s\",\"rssi\":%d}\n\r", ap_info[i].ssid, ap_info[i].rssi);
-    // }
+    for (int i = 0; (i < DEFAULT_SCAN_LIST_SIZE) && (i < number); i++)
+    {
+        ESP_LOGI(TAG, "{\"SSID\":\"%s\",\"rssi\":%d}\n\r", ap_info[i].ssid, ap_info[i].rssi);
+    }
     if (uart_printf)
     {
         //  xSemaphoreTake(xMutex4, -1); //UART Semaphore Take
@@ -459,10 +459,18 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
         xSemaphoreGive(xMutex4);
     }
 
+    //返回信号最好的WIFI信息
+    if (rssi_val != NULL && rssi_ssid != NULL)
+    {
+        ESP_LOGI(TAG, "%d", __LINE__);
+        *rssi_val = ap_info[0].rssi;
+        memcpy(rssi_ssid, ap_info[0].ssid, strlen((char *)ap_info[0].ssid));
+    }
+
     if (ScanAP > 0)
     {
-        if (rssi_val != NULL && rssi_ssid != NULL)
-            *rssi_val = -127;
+        // if (rssi_val != NULL && rssi_ssid != NULL)
+        //     *rssi_val = -127;
 
         for (i = 0; i < ScanAP; i++)
         {
@@ -509,17 +517,17 @@ int Scan_Wifi_List(char *rssi_ssid, int *rssi_val, bool uart_printf)
                     Wifi_List_Val = ap_info[i].rssi;
                 }
             }
-            if (rssi_val != NULL && rssi_ssid != NULL)
-            {
-                if (*rssi_val < ap_info[i].rssi)
-                {
-                    *rssi_val = ap_info[i].rssi;
+            // if (rssi_val != NULL && rssi_ssid != NULL)
+            // {
+            //     if (*rssi_val < ap_info[i].rssi)
+            //     {
+            //         *rssi_val = ap_info[i].rssi;
 
-                    memset(rssi_ssid, 0, 32);
+            //         memset(rssi_ssid, 0, 32);
 
-                    memcpy(rssi_ssid, ap_info[i].ssid, strlen((char *)ap_info[i].ssid));
-                }
-            }
+            //         memcpy(rssi_ssid, ap_info[i].ssid, strlen((char *)ap_info[i].ssid));
+            //     }
+            // }
         }
         osi_Read_UTCtime(utctime, sizeof(utctime)); //read time
 

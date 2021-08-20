@@ -1656,8 +1656,8 @@ void Cmd_System_TestData(char *read_buf, uint16_t data_len)
 {
   char *out_buf;
   cJSON *pJsonRoot;
-  char utc_time[21];
-  char rssi_ssid[32];
+  char utc_time[21] = {0};
+  char rssi_ssid[32] = {0};
   char mac_buf[18] = {0};
   uint8_t mac_addr[8] = {0};
   int rssi_val = 0;
