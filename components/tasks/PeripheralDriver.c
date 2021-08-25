@@ -120,9 +120,9 @@ void PinMuxConfig(void)
   io_conf.pull_up_en = 0;
   gpio_config(&io_conf);
 
-  io_conf.intr_type = GPIO_INTR_NEGEDGE; //下降沿
+  io_conf.intr_type = GPIO_INTR_POSEDGE; //上升沿
   io_conf.mode = GPIO_MODE_INPUT;
-  io_conf.pull_down_en = 0;
+  io_conf.pull_down_en = 1;
   io_conf.pull_up_en = 0;
   io_conf.pin_bit_mask = ((1ULL << BUTTON_PIN) | (1ULL << USB_SRC_WKUP) | (1ULL << ACCE_SRC_WKUP));
   gpio_config(&io_conf);

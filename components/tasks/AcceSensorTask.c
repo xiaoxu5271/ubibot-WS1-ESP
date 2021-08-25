@@ -23,6 +23,7 @@
 
 #include "MsgType.h"
 #include "adxl345.h"
+#include "LIS2DH12.h"
 #include "PCF8563.h"
 #include "AcceSensorTask.h"
 #include "PeripheralDriver.h"
@@ -38,6 +39,7 @@ extern TaskHandle_t xMutex1;   //Used for SPI Lock//
 
 extern volatile bool data_post; //need post data immediately//
 extern volatile bool acce_act;  //acceleration sensor active//
+extern volatile bool acc_sle;
 extern volatile uint16_t sys_run_time;
 
 extern volatile uint8_t fn_acc_tap1;   //0:closed single tap,1:single tap interrupt,2:single tap interrupt and post//
@@ -73,56 +75,63 @@ uint8_t osi_adx345_readReg(uint8_t addr)
 *******************************************************************************/
 void acce_sensor_reset(void)
 {
-  uint8_t set_val = 0x87; //7:DATA_READY/1:WATERMARK/0:OVERRUN Interrupt Enable
+  if (acc_sle)
+  {
+    /* code */
+  }
+  else
+  {
+    uint8_t set_val = 0x87; //7:DATA_READY/1:WATERMARK/0:OVERRUN Interrupt Enable
 
-  if (fn_acc_act)
-  {
-    set_val |= 0x18; //4:ACTIVITY/3:INACTIVITY Interrupt Enable
-  }
-  if ((fn_acc_tap1) || (fn_acc_tap2))
-  {
-    set_val |= 0x60; //6:SINGLE_TAP/DOUBLE_TAP Interrupt Enable
-  }
+    if (fn_acc_act)
+    {
+      set_val |= 0x18; //4:ACTIVITY/3:INACTIVITY Interrupt Enable
+    }
+    if ((fn_acc_tap1) || (fn_acc_tap2))
+    {
+      set_val |= 0x60; //6:SINGLE_TAP/DOUBLE_TAP Interrupt Enable
+    }
 #ifdef ADXL345_SPI
-  xSemaphoreTake(xMutex1, -1);           //SPI Semaphore Take
-  if (adx345_readReg(DEVICE_ID) == 0xE5) //read the sensor device id
-  {
-    if (fn_acc_tap1 || fn_acc_tap2 || fn_acc_act)
+    xSemaphoreTake(xMutex1, -1);           //SPI Semaphore Take
+    if (adx345_readReg(DEVICE_ID) == 0xE5) //read the sensor device id
     {
-      adx345_writeReg(POWER_CTL, 0x20);             //standby mode
-      adx345_writeReg(INT_ENABLE, 0x00);            //disable all interrupt
-      adx345_writeReg(THRESH_ACT, thres_acc_min);   //thres_acc_min*62.5mg
-      adx345_writeReg(THRESH_INACT, thres_acc_min); //thres_acc_min*62.5mg
-      adx345_writeReg(INT_ENABLE, set_val);         //enable acce sensor interrupt
-      adx345_writeReg(POWER_CTL, 0x28);             //link mode,measure mode
+      if (fn_acc_tap1 || fn_acc_tap2 || fn_acc_act)
+      {
+        adx345_writeReg(POWER_CTL, 0x20);             //standby mode
+        adx345_writeReg(INT_ENABLE, 0x00);            //disable all interrupt
+        adx345_writeReg(THRESH_ACT, thres_acc_min);   //thres_acc_min*62.5mg
+        adx345_writeReg(THRESH_INACT, thres_acc_min); //thres_acc_min*62.5mg
+        adx345_writeReg(INT_ENABLE, set_val);         //enable acce sensor interrupt
+        adx345_writeReg(POWER_CTL, 0x28);             //link mode,measure mode
+      }
+      else
+      {
+        adx345_writeReg(POWER_CTL, 0x24); //link mode,standby mode,deep sleep mode
+      }
     }
-    else
-    {
-      adx345_writeReg(POWER_CTL, 0x24); //link mode,standby mode,deep sleep mode
-    }
-  }
-  xSemaphoreGive(xMutex1); //SPI Semaphore Give
+    xSemaphoreGive(xMutex1); //SPI Semaphore Give
 #endif
 #ifdef ADXL345_IIC
-  //vTaskSuspendAll();                     //disable the tasks
-  if (adx345_readReg(DEVICE_ID) == 0xE5) //read the sensor device id
-  {
-    if (fn_acc_tap1 || fn_acc_tap2 || fn_acc_act)
+    //vTaskSuspendAll();                     //disable the tasks
+    if (adx345_readReg(DEVICE_ID) == 0xE5) //read the sensor device id
     {
-      adx345_writeReg(POWER_CTL, 0x20);             //standby mode
-      adx345_writeReg(INT_ENABLE, 0x00);            //disable all interrupt
-      adx345_writeReg(THRESH_ACT, thres_acc_min);   //thres_acc_min*62.5mg
-      adx345_writeReg(THRESH_INACT, thres_acc_min); //thres_acc_min*62.5mg
-      adx345_writeReg(INT_ENABLE, set_val);         //enable acce sensor interrupt
-      adx345_writeReg(POWER_CTL, 0x28);             //link mode,measure mode
+      if (fn_acc_tap1 || fn_acc_tap2 || fn_acc_act)
+      {
+        adx345_writeReg(POWER_CTL, 0x20);             //standby mode
+        adx345_writeReg(INT_ENABLE, 0x00);            //disable all interrupt
+        adx345_writeReg(THRESH_ACT, thres_acc_min);   //thres_acc_min*62.5mg
+        adx345_writeReg(THRESH_INACT, thres_acc_min); //thres_acc_min*62.5mg
+        adx345_writeReg(INT_ENABLE, set_val);         //enable acce sensor interrupt
+        adx345_writeReg(POWER_CTL, 0x28);             //link mode,measure mode
+      }
+      else
+      {
+        adx345_writeReg(POWER_CTL, 0x24); //link mode,standby mode,deep sleep mode
+      }
     }
-    else
-    {
-      adx345_writeReg(POWER_CTL, 0x24); //link mode,standby mode,deep sleep mode
-    }
-  }
-  //xTaskResumeAll(); //enable all tasks
+    //xTaskResumeAll(); //enable all tasks
 #endif
+  }
 }
 
 /*******************************************************************************
@@ -200,7 +209,7 @@ static void AccelerationValue(float *accevalue)
 void AcceSensor_Int_Task(void *pvParameters)
 {
   uint8_t acce_status;
-  SensorMessage xMsg;
+  // SensorMessage xMsg;
 
   for (;;)
   {
@@ -210,63 +219,44 @@ void AcceSensor_Int_Task(void *pvParameters)
     xEventGroupClearBits(Task_Group, SENTASK_12);
 
     ESP_LOGI(TAG, "%d,ACCE_SRC_WKUP:%d", __LINE__, gpio_get_level(ACCE_SRC_WKUP));
-    if (!gpio_get_level(ACCE_SRC_WKUP))
+    if (gpio_get_level(ACCE_SRC_WKUP))
     {
-      acce_status = osi_adx345_readReg(INT_SOURCE);
-      ESP_LOGI(TAG, "%d,acce_status:%d", __LINE__, acce_status);
+      if (acc_sle == 0) //ADXL
+      {
+        acce_status = osi_adx345_readReg(INT_SOURCE);
+        ESP_LOGI(TAG, "%d,acce_status:%d", __LINE__, acce_status);
 
-      if (acce_status & 0x10) //ACCE Sensor ACT Interrupt
-      {
-        if (fn_acc_act)
+        if (acce_status & 0x10) //ACCE Sensor ACT Interrupt
         {
-          acce_act = 1;
-          // osi_SyncObjSignalFromISR(&xBinary5);  //Start Acce Sensor Task
-          if (xBinary5 != NULL)
-            vTaskNotifyGiveFromISR(xBinary5, NULL);
-        }
-      }
-      if (acce_status & 0x08) //ACCE Sensor INACT Interrupt
-      {
-        acce_act = 0;
-      }
-
-      if (acce_status & 0x20) //ACCE Sensor DOUBLE_TAP Interrupt
-      {
-        if (fn_acc_tap2)
-        {
-          if (fn_acc_tap2 == 2)
+          if (fn_acc_act)
           {
-            data_post = 1; //Need Post Data Immediately
+            acce_act = 1;
+            // osi_SyncObjSignalFromISR(&xBinary5);  //Start Acce Sensor Task
+            if (xBinary5 != NULL)
+              vTaskNotifyGiveFromISR(xBinary5, NULL);
           }
-          xMsg.sensornum = TAP_NUM;         //Message Number
-          xMsg.sensorval = f7_a * 2 + f7_b; //Message Value
-          ESP_LOGI(TAG, "%d,sensorval=%.4f", __LINE__, xMsg.sensorval);
-          xQueueSend(xQueue0, &xMsg, 0); //Send Acceleration Value
-
-          // MAP_UtilsDelay(4000000); //300ms
-          vTaskDelay(300 / portTICK_RATE_MS);
         }
-      }
-      else if (acce_status & 0x40) //ACCE Sensor SINGLE_TAP Interrupt
-      {
-        if (fn_acc_tap1)
+        acce_status = osi_adx345_readReg(INT_SOURCE);
+        if (acce_status & 0x08) //ACCE Sensor INACT Interrupt
         {
-          if (fn_acc_tap1 == 2)
-          {
-            data_post = 1; //Need Post Data Immediately
-          }
-          xMsg.sensornum = TAP_NUM;         //Message Number
-          xMsg.sensorval = f7_a * 1 + f7_b; //Message Value
-          xQueueSend(xQueue0, &xMsg, 0);    //Send Acceleration Value
-                                            // MAP_UtilsDelay(4000000);          //300ms
-          vTaskDelay(300 / portTICK_RATE_MS);
+          acce_act = 0;
         }
       }
-
-      acce_status = osi_adx345_readReg(INT_SOURCE);
-      if (acce_status & 0x08) //ACCE Sensor INACT Interrupt
+      else //LIS
       {
-        acce_act = 0;
+        acce_status = lis2dh12_clear_int();
+        ESP_LOGI(TAG, "%d,acce_status:%d,fn_acc_act", __LINE__, acce_status);
+        if (acce_status & 0x6a)
+        {
+          if (fn_acc_act)
+          {
+            acce_act = 1;
+            if (xBinary5 != NULL)
+              vTaskNotifyGiveFromISR(xBinary5, NULL);
+
+            // acce_act = 0;
+          }
+        }
       }
     }
   }
@@ -288,28 +278,39 @@ void AccelerationSensorTask(void *pvParameters)
     ulTaskNotifyTake(pdTRUE, -1);
     xEventGroupClearBits(Task_Group, SENTASK_5);
 
-    acce_read = 0;
-    while (acce_act) //acceleration sensor active
+    if (acc_sle)
     {
-      acce_read += 1;
-      if (acce_read > 60)
+      accevalue = lis2dh12_data();
+      aMsg.sensornum = ACCE_NUM;                //Message Number
+      aMsg.sensorval = f6_a * accevalue + f6_b; //Message Value
+      ESP_LOGI(TAG, "%d,sensorval=%.4f", __LINE__, aMsg.sensorval);
+      xQueueSend(xQueue0, &aMsg, 0); //send acceleration value
+    }
+    else
+    {
+      acce_read = 0;
+      while (acce_act) //acceleration sensor active
       {
-        acce_act = 0;
-        // osi_SyncObjSignalFromISR(&xBinary12); //Start Acce Sensor interrupt Task
-        if (xBinary12 != NULL)
-          vTaskNotifyGiveFromISR(xBinary12, NULL);
-        break;
-      }
+        acce_read += 1;
+        if (acce_read > 60)
+        {
+          acce_act = 0;
+          // osi_SyncObjSignalFromISR(&xBinary12); //Start Acce Sensor interrupt Task
+          if (xBinary12 != NULL)
+            vTaskNotifyGiveFromISR(xBinary12, NULL);
+          break;
+        }
 
-      AccelerationValue(&accevalue); //read acceleration value
-      if (accevalue != ERROR_CODE)
-      {
-        aMsg.sensornum = ACCE_NUM;                //Message Number
-        aMsg.sensorval = f6_a * accevalue + f6_b; //Message Value
-        ESP_LOGI(TAG, "%d,sensorval=%.4f", __LINE__, aMsg.sensorval);
-        xQueueSend(xQueue0, &aMsg, 0); //send acceleration value
+        AccelerationValue(&accevalue); //read acceleration value
+        if (accevalue != ERROR_CODE)
+        {
+          aMsg.sensornum = ACCE_NUM;                //Message Number
+          aMsg.sensorval = f6_a * accevalue + f6_b; //Message Value
+          ESP_LOGI(TAG, "%d,sensorval=%.4f", __LINE__, aMsg.sensorval);
+          xQueueSend(xQueue0, &aMsg, 0); //send acceleration value
+        }
+        sys_run_time = 0; //clear system time out
       }
-      sys_run_time = 0; //clear system time out
     }
   }
 }

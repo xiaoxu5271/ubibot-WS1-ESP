@@ -341,5 +341,28 @@ void MulTry_I2C_RD_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uint
 }
 
 /*******************************************************************************
+  检查IIC地址是否可用
+*******************************************************************************/
+bool check_iic_addr(uint8_t addr)
+{
+  xSemaphoreTake(xMutex8, -1);
+  i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+  i2c_master_start(cmd);
+  i2c_master_write_byte(cmd, addr * 2, ACK_CHECK_EN);
+  i2c_master_stop(cmd);
+  esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 50 / portTICK_RATE_MS);
+  i2c_cmd_link_delete(cmd);
+  xSemaphoreGive(xMutex8);
+  if (ret == ESP_OK)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+/*******************************************************************************
                                       END         
 *******************************************************************************/

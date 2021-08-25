@@ -47,6 +47,7 @@
 #include "at24c08.h"
 #include "w25q128.h"
 #include "adxl345.h"
+#include "LIS2DH12.h"
 #include "PCF8563.h"
 #include "MsgType.h"
 #include "UartTask.h"
@@ -147,6 +148,7 @@ volatile bool acce_act = 0;		  //acceleration sensor active
 volatile bool PostSetData = 0;	  //post url data
 volatile bool update_time = 0;	  //update time
 volatile bool usb_status_val = 0; //usb status
+volatile bool acc_sle = 0;		  //0 adxl345 ; 1 lis2dh12
 
 volatile uint8_t fn_acc_tap1;	//0:closed single tap,1:single tap interrupt,2:single tap interrupt and post
 volatile uint8_t fn_acc_tap2;	//0:closed double tap,1:double tap interrupt,2:double tap interrupt and post
@@ -154,7 +156,7 @@ volatile uint8_t fn_acc_act;	//0:cloused act interrupt,1:act interrupt
 volatile uint8_t thres_acc_min; //min value for acceleration sensor act interrupt
 volatile uint8_t cg_data_led;	//Led ON or OFF when data post
 volatile uint8_t no_net_fn;		//change fn_dp when no net
-volatile uint8_t wifi_mode;		//1:connect wifi immediately,0:connect wifi when scaned
+volatile uint8_t wifi_mode;		//1:connect wifi immediately,0:connect wifi when sc1aned
 
 volatile uint16_t sys_run_time = 0;
 
@@ -328,8 +330,16 @@ void Set_GPIO_AsWkUp(void)
 *******************************************************************************/
 static void Sensor_Power_OFF(void)
 {
-	ADXL345_Power_Down(); //Acce Sensor power down
-	osi_adx345_readReg(INT_SOURCE);
+	if (acc_sle)
+	{
+		lis2dh12_Power_Down();
+	}
+	else
+	{
+		ADXL345_Power_Down(); //Acce Sensor power down
+		osi_adx345_readReg(INT_SOURCE);
+	}
+
 	ESP_LOGI(TAG, "%d,ACCE_SRC_WKUP:%d", __LINE__, gpio_get_level(ACCE_SRC_WKUP));
 
 #ifdef USE_LCD
@@ -686,7 +696,7 @@ static void WakeUp_Process(void)
 	// 	}
 	// }
 	// if (!GPIOPinRead(ACCE_PORT, ACCE_PIN)) //Acceleration Sensor GPIO Wake Up
-	if (!gpio_get_level(ACCE_SRC_WKUP))
+	if (gpio_get_level(ACCE_SRC_WKUP))
 	{
 		// osi_SyncObjSignalFromISR(&xBinary12);
 		if (xBinary12 != NULL)
@@ -1098,15 +1108,15 @@ void ButtonPush_Int_Task(void *pvParameters)
 		Notify_val = ulTaskNotifyTake(pdTRUE, -1);
 		xEventGroupClearBits(Task_Group, BUTTON_INT_BIT);
 
-		ESP_LOGI(TAG, "%d,Notify_val=%d", __LINE__, Notify_val);
+		ESP_LOGI(TAG, "%d,Notify_val=%d,key:%d", __LINE__, Notify_val, gpio_get_level(BUTTON_PIN));
 
 		vTaskDelay(10 / portTICK_RATE_MS);
-		if ((!gpio_get_level(BUTTON_PIN)) || Notify_val == 0xff)
+		if (gpio_get_level(BUTTON_PIN) || Notify_val == 0xff)
 		{
 			ESP_LOGI(TAG, "%d，ACCE_SRC_WKUP:%d", __LINE__, gpio_get_level(ACCE_SRC_WKUP));
 			Button_Push = 0;
 
-			while (!gpio_get_level(BUTTON_PIN)) //waite button up,read push time
+			while (gpio_get_level(BUTTON_PIN)) //waite button up,read push time
 			{
 				Button_Push += 1;
 
@@ -1239,7 +1249,7 @@ void Enter_Sleep(bool OFF_FLAG)
 	{
 		const int ext_wakeup_pin_1 = BUTTON_PIN;
 		const uint64_t ext_wakeup_pin_1_mask = 1ULL << ext_wakeup_pin_1;
-		esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask, ESP_EXT1_WAKEUP_ALL_LOW);
+		esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask, ESP_EXT1_WAKEUP_ANY_HIGH);
 		ESP_LOGI(TAG, " SET BUTTON wakeup");
 	}
 	else
@@ -1257,7 +1267,7 @@ void Enter_Sleep(bool OFF_FLAG)
 		//提前500ms 唤醒
 		esp_sleep_enable_timer_wakeup(sleep_time * 1000000 - (500 * 1000));
 
-		esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask, ESP_EXT1_WAKEUP_ALL_LOW);
+		esp_sleep_enable_ext1_wakeup(ext_wakeup_pin_1_mask | ext_wakeup_pin_2_mask, ESP_EXT1_WAKEUP_ANY_HIGH);
 		ESP_LOGI(TAG, " SET BUTTON & ACCE wakeup");
 	}
 
@@ -1303,8 +1313,15 @@ void Tasks_Check_Task(void *pvParameters)
 static void Sensors_Init(void)
 {
 	OPT3001_Init(); //opt3001 light sensor init
-
-	ADXL345_Init(); //adxl245 sensor init
+	if (acc_sle)
+	{
+		// lis2dh12_init();
+		lis2dh12_detect_init();
+	}
+	else
+	{
+		ADXL345_Init(); //adxl245 sensor init
+	}
 
 	while ((flash_set_val = w25q_Init()) != SUCCESS) //Init W25Q128 Memory Chip
 	{
@@ -1520,12 +1537,27 @@ void app_main(void)
 		at24c08_write_byte(USB_FLAG_ADDR, usb_status);
 	}
 
+	//判断加速度传感器
+	if (check_iic_addr(ADXL345_IIC_ADDR))
+	{
+		acc_sle = 0;
+		ESP_LOGI(TAG, "%d", __LINE__);
+	}
+	else if (check_iic_addr(LIS2DH12_ADDR))
+	{
+		acc_sle = 1;
+		ESP_LOGI(TAG, "%d", __LINE__);
+	}
+	else
+	{
+		ESP_LOGE(TAG, "%d", __LINE__);
+	}
+
 	// platform_init();												 //Initialize the platform
 	if (Read_System_Status(read_flag, sizeof(read_flag)) == SUCCESS) //Check System Status
 	{
 		if (!strcmp((char const *)read_flag, SYSTEM_ON)) //"SYSTEM ON"
 		{
-
 			//初始化睡眠唤醒，ESP可在进入中断前再进行设置
 			// Set_GPIO_AsWkUp();								  //setting GPIO wakeup source
 			// lp3p0_setup_power_policy(POWER_POLICY_HIBERNATE); //lowest power mode
@@ -1555,7 +1587,7 @@ void app_main(void)
 		else //"SYSTEM OFF"
 		{
 			push_time = 0;
-			while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
+			while (gpio_get_level(BUTTON_PIN)) //Wait Button Up
 			{
 				if (push_time++ == 20) //About 3s,POWER ON
 				{
@@ -1566,7 +1598,7 @@ void app_main(void)
 				if (push_time == 50) //About 7.5s,Creat AP Mode Task
 				{
 					bell_makeSound(150);
-					while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
+					while (gpio_get_level(BUTTON_PIN)) //Wait Button Up
 					{
 						Green_Red_Led_Flashed(1, 6);
 						push_time += 12;
@@ -1581,7 +1613,7 @@ void app_main(void)
 				{
 					SET_GREEN_LED_OFF();
 					bell_makeSound(150);
-					while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
+					while (gpio_get_level(BUTTON_PIN)) //Wait Button Up
 					{
 						// WatchdogAck(); //Acknowledge the watchdog
 						Red_Led_Flashed(1, 3);
@@ -1597,7 +1629,7 @@ void app_main(void)
 				{
 					SET_GREEN_LED_OFF();
 					bell_makeSound(200);
-					while (!gpio_get_level(BUTTON_PIN)) //Wait Button Up
+					while (gpio_get_level(BUTTON_PIN)) //Wait Button Up
 					{
 						// WatchdogAck(); //Acknowledge the watchdog
 						Red_Led_Flashed(1, 1);
@@ -1611,6 +1643,7 @@ void app_main(void)
 
 			if (push_time >= 20) //Push Time>=3s or USB connected Power ON
 			{
+
 				SET_GREEN_LED_OFF();															   //LED OFF
 				at24c08_WriteData(SYSTEM_STATUS_ADDR, (uint8_t *)SYSTEM_ON, strlen(SYSTEM_ON), 1); //Restor The System Status-ON
 

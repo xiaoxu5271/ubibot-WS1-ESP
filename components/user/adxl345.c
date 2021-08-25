@@ -79,8 +79,8 @@ short ADXL345_Init(void)
                                          {TAP_AXES, 0x07},
                                          {BW_RATE, 0x0a},
                                          {INT_MAP, 0x87},
-                                         {DATA_FORMAT, 0x2b}, //DATA_FORMAT, 0x2b 00101011 D5设置INT_INVERT，0->高电平有效 ,1->低电平有效
-                                         {FIFO_CTL, 0xa8}};   //FIFO_CTL, 0xa8 10101000 D5设置触发位，0->INT1 ,1->INT2
+                                         {DATA_FORMAT, 0x0b}, //DATA_FORMAT, 0x2b 00101011 D5设置INT_INVERT，0->高电平有效 ,1->低电平有效
+                                         {FIFO_CTL, 0x88}};   //FIFO_CTL, 0xa8 10101000 D5设置触发位，0->INT1 ,1->INT2
 
     n_i = sizeof(Acce_Init_Data) / sizeof(struct Init_Data);
 

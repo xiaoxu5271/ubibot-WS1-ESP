@@ -53,6 +53,7 @@ extern void MulTry_I2C_WR_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *bu
 
 extern void MulTry_I2C_RD_mulReg(uint8_t sla_addr, uint8_t reg_addr, uint8_t *buf, uint8_t len); //read multiple byte from slave register whit multiple time
 
+extern bool check_iic_addr(uint8_t addr);
 /*******************************************************************************
                                       END         
 *******************************************************************************/
